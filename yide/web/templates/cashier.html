@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>一得书苑收银台</title>
+    <style>
+        .container {
+            text-align: center;
+            margin-top: 50px;
+            font-family: sans-serif;
+        }
+
+        #barcode-input {
+            padding: 10px;
+            width: 300px;
+            font-size: 1.2rem;
+        }
+
+        .display {
+            margin-top: 20px;
+            font-size: 1.5rem;
+            color: #333;
+        }
+
+        #log {
+            margin-top: 30px;
+            color: #666;
+        }
+
+        /* 清空按钮的容器，放在页面右下角或显眼位置 */
+        .action-bar {
+            margin-top: 30px;
+            padding: 20px 0;
+            border-top: 2px dashed #eee;
+            text-align: right;
+        }
+
+        .btn-reset {
+            background-color: #ff4d4f; /* 警告红 */
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-left: 50px;
+            box-shadow: 0 4px 6px rgba(255, 77, 79, 0.2);
+            transition: all 0.3s ease; /* 增加平滑动画 */
+            display: inline-flex;
+            align-items: center;
+        }
+
+        /* 按钮前面的小图标样式 (可选) */
+        .btn-icon {
+            margin-right: 8px;
+            font-size: 20px;
+        }
+
+        .today-info {
+            background: #fff5f5;
+            border: 1px solid #ffccc7;
+            padding: 15px;
+            margin-right: 50px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            display: inline-block;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        #web-today-total {
+            font-family: 'Courier New', Courier, monospace; /* 让数字看起来更像电子屏 */
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>文具扫码查价</h1>
+    <div class="today-info">
+        今日实时营收：<span id="web-today-total" style="color: #e64340; font-size: 24px; font-weight: bold;">￥0.00</span>
+    </div>
+    <input type="text" id="barcode-input" autofocus placeholder="请扫码商品条码...">
+    <button class="btn-reset" onclick="resetAll()">
+        <span class="btn-icon">🗑️</span>清空重置(不扣库存)
+    </button>
+    <div class="mode-switch">
+        <label>
+            <input type="checkbox" id="checkOnly"> 🔍 仅查价（不计入账单）
+        </label>
+    </div>
+    <div class="display">
+        <div id="product-name">商品：等待扫码...</div>
+        <div id="product-price">价格：-</div>
+    </div>
+
+    <div id="log">扫码历史记录...</div>
+    <div class="action-bar">
+
+    </div>
+</div>
+
+<script>
+    const input = document.getElementById('barcode-input');
+    const nameDiv = document.getElementById('product-name');
+    const priceDiv = document.getElementById('product-price');
+    const logDiv = document.getElementById('log');
+
+    // 1. 自动聚焦输入框
+    setInterval(() => {
+        if (document.activeElement !== input) input.focus();
+    }, 1000);
+
+    // 2. 更新今日营收统计
+    function updateWebStats() {
+        fetch('/get_today_stats/')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // 这里的 data.today_total 必须和 views.py 返回的 key 一致
+                    const total = parseFloat(data.total_amount) || 0;
+                    document.getElementById('web-today-total').innerText = "￥" + total.toFixed(2);
+                }
+            })
+            .catch(err => console.error("营收更新失败:", err));
+    }
+
+    updateWebStats(); // 初始化加载
+    // 这样开启定时器是安全的，每 2 秒它只改数字
+    setInterval(updateWebStats, 2000);
+
+    // 3. 重置账单（不扣库存）
+    function resetAll() {
+        if (confirm("确定要清空当前账单吗？(此操作不扣库存，仅用于扫错重来)")) {
+            fetch('/reset_cart/')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') location.reload();
+                });
+        }
+    }
+
+    // 4. 核心：处理支付码逻辑 (模拟结账)
+    function handlePayment(payCode) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance("扫码成功，正在处理结账"));
+
+        // 调用结账接口（与小程序一致：扣库存 + 记销售历史）
+        fetch('/checkout_cart/')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    window.speechSynthesis.speak(new SpeechSynthesisUtterance("收款成功，今日营业额已更新"));
+                    nameDiv.innerText = "✅ 结账完成";
+                    priceDiv.innerText = "支付码：" + payCode.substring(0, 4) + "****" + payCode.substring(14);
+                    // 刷新左侧营收显示
+                    updateWebStats();
+                    // 3秒后清空显示
+                    setTimeout(() => {
+                        nameDiv.innerText = "等待扫码...";
+                        priceDiv.innerText = "-";
+                        logDiv.innerHTML = "账单已结清，扫码开始新订单...";
+                    }, 3000);
+                } else {
+                    alert(data.message);
+                }
+            });
+    }
+
+    // 5. 监听扫码枪回车
+    input.addEventListener('keyup', function (e) {
+        if (e.key === 'Enter') {
+            const code = input.value.trim();
+            if (!code) return;
+
+            // --- 智能识别逻辑 ---
+            // 判断是否为支付码：18位数字，且通常以13(微信)或28(支付宝)开头
+            const isPayCode = /^\d{18}$/.test(code) && (code.startsWith('13') || code.startsWith('28'));
+
+            if (isPayCode) {
+                handlePayment(code);
+                input.value = '';
+                return;
+            }
+
+            // --- 普通商品扫码/查价逻辑 ---
+            const isCheckOnly = document.getElementById('checkOnly').checked;
+            const apiUrl = isCheckOnly ? `/get_product_by_barcode/?barcode=${code}` : `/add_item/?barcode=${code}`;
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const modeText = isCheckOnly ? "【仅查价】" : "当前录入：";
+                        nameDiv.innerText = modeText + data.name;
+                        priceDiv.innerText = "单价：￥" + data.price;
+
+                        let voiceMsg = `${data.name}，${data.price}元`;
+                        if (isCheckOnly) voiceMsg = "注意，查价模式：" + voiceMsg;
+
+                        window.speechSynthesis.cancel();
+                        window.speechSynthesis.speak(new SpeechSynthesisUtterance(voiceMsg));
+
+                        if (!isCheckOnly) {
+                            const newLog = document.createElement('p');
+                            newLog.innerText = `${new Date().toLocaleTimeString()} - ${data.name} (￥${data.price})`;
+                            logDiv.prepend(newLog);
+                        }
+                    } else {
+                        window.speechSynthesis.cancel();
+                        window.speechSynthesis.speak(new SpeechSynthesisUtterance("没找到商品"));
+                        nameDiv.innerText = "状态：未找到该商品";
+                    }
+                    input.value = '';
+                })
+                .catch(err => {
+                    alert("连接失败，请确认后端已开启 get_today_stats 接口");
+                    input.value = '';
+                });
+        }
+    });
+</script>
+</body>
+</html>

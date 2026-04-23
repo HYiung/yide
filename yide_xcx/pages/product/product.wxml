@@ -1,0 +1,35 @@
+<view class="container">
+  <view class="header">
+    <text class="title">商品入库/补货</text>
+    <text class="subtitle">扫码即可自动识别旧商品或录入新商品</text>
+  </view>
+
+  <view class="scan-section" bindtap="scanBarcode">
+    <button bindtap="scanBarcode">扫码识别</button>
+  </view>
+
+  <view class="form-card" wx:if="{{barcode}}">
+    <view class="input-group">
+      <text class="label">条形码</text>
+      <input class="input-disabled" value="{{barcode}}" disabled />
+    </view>
+
+    <view class="input-group">
+      <text class="label">商品名称</text>
+      <input class="input-main" placeholder="请输入商品名称" model:value="{{name}}" />
+    </view>
+
+    <view class="input-row">
+      <view class="input-group half">
+        <text class="label">单价 (元)</text>
+        <input class="input-main" type="digit" placeholder="0.00" model:value="{{price}}" />
+      </view>
+      <view class="input-group half">
+        <text class="label">入库数量</text>
+        <input class="input-main" type="number" placeholder="1" model:value="{{stock}}" />
+      </view>
+    </view>
+
+    <button class="submit-btn" bindtap="submitData">完成并入库</button>
+  </view>
+</view>
