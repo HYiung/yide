@@ -1,0 +1,93 @@
+.container {
+  padding: 20rpx;
+  background-color: #f7f7f7;
+  min-height: 100vh;
+}
+
+.header {
+  margin: 120rpx 0;
+  text-align: center;
+}
+
+.title {
+  font-size: 44rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+}
+
+.subtitle {
+  font-size: 36rpx;
+  color: #888;
+  margin-top: 10rpx;
+  display: block;
+}
+
+.scan-section {
+  background: #fff;
+  border: 4rpx dashed #07c160;
+  border-radius: 20rpx;
+  height: 250rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #07c160;
+  font-weight: bold;
+}
+
+.form-card {
+  background: #fff;
+  margin-top: 30rpx;
+  padding: 30rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.input-group {
+  margin-bottom: 30rpx;
+}
+
+.label {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 10rpx;
+  display: block;
+}
+
+.input-main {
+  height: 90rpx;
+  border: 2rpx solid #ddd;
+  border-radius: 12rpx;
+  padding: 0 20rpx;
+  font-size: 34rpx;
+}
+
+.input-disabled {
+  height: 80rpx;
+  background: #eee;
+  border-radius: 12rpx;
+  padding: 0 20rpx;
+  color: #888;
+  line-height: 80rpx;
+}
+
+.input-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.half {
+  width: 48%;
+}
+
+.submit-btn {
+  background: #07c160;
+  color: #fff;
+  height: 100rpx;
+  line-height: 100rpx;
+  border-radius: 50rpx;
+  font-size: 36rpx;
+  margin-top: 40rpx;
+  font-weight: bold;
+}

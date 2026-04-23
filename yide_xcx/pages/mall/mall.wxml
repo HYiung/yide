@@ -1,0 +1,56 @@
+<scroll-view class="mall-container" scroll-y="true">
+  <view class="banner">一得书苑</view>
+
+  <scroll-view class="category-bar" scroll-x="true">
+    <view class="cat-item {{activeCat == item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:key="id"
+      bindtap="switchCat" data-id="{{item.id}}">{{item.name}}</view>
+  </scroll-view>
+
+  <view class="product-list">
+    <view class="product-item" wx:for="{{products}}" wx:key="id">
+      <image src="https://cdn-icons-png.flaticon.com/512/2541/2541991.png" mode="aspectFit"></image>
+      <view class="info">
+        <text class="name">{{item.name}}</text>
+        <text class="price">￥{{item.price}}</text>
+        <button size="mini" type="primary" bindtap="addToCart" data-item="{{item}}">加入购物车</button>
+      </view>
+    </view>
+  </view>
+  <view style="height: 150rpx;"></view>
+</scroll-view>
+
+<view class="cart-mask" wx:if="{{showCartDetail}}" bindtap="toggleCartDetail"></view>
+
+<view class="cart-detail {{showCartDetail ? 'show' : ''}}">
+  <view class="cart-header">
+    <text>已选商品</text>
+    <view class="clear-btn" bindtap="clearCart">
+      <text>🗑️ 清空购物车</text>
+    </view>
+  </view>
+  <scroll-view scroll-y="true" class="cart-list">
+    <view class="cart-item" wx:for="{{cart}}" wx:key="id">
+      <text class="item-name">{{item.name}}</text>
+      <view class="item-right">
+        <text class="item-price">￥{{item.price}}</text>
+        <view class="quantity-ctrl">
+          <view class="btn" bindtap="minusItem" data-id="{{item.id}}">-</view>
+          <text>{{item.num}}</text>
+          <view class="btn" bindtap="plusItem" data-id="{{item.id}}">+</view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>
+
+<view class="cart-bar" wx:if="{{totalCount > 0}}">
+  <view class="cart-info" bindtap="toggleCartDetail">
+    <view class="cart-icon">
+      <text class="badge">{{totalCount}}</text>
+      <view class="cart-emoji">🛒</view> 
+    </view>
+    <view class="total-text">合计：<text class="price-num">￥{{totalPrice}}</text></view>
+    <text class="arrow"> {{showCartDetail ? '▼' : '▲'}} </text>
+  </view>
+  <view class="settle-btn" bindtap="goToOrder">去结算</view>
+</view>

@@ -1,0 +1,48 @@
+{
+  "pages": [
+    "pages/mall/mall",
+    "pages/index/index",
+    "pages/product/product",
+    "pages/order/order"
+  ],
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#07c160",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "收银台",
+        "iconPath": "images/收银未选中.png",
+        "selectedIconPath": "images/收银选中.png"
+      },
+      {
+        "pagePath": "pages/product/product",
+        "text": "进货录入",
+        "iconPath": "images/入库未选中.png",
+        "selectedIconPath": "images/入库选中.png"
+      }
+    ]
+  },
+  "window": {
+    "navigationBarTitleText": "一得书苑管理系统",
+    "navigationBarBackgroundColor": "#07c160",
+    "navigationBarTextStyle": "white"
+  },
+  "style": "v2",
+  "renderer": "skyline",
+  "rendererOptions": {
+    "skyline": {
+      "defaultDisplayBlock": true,
+      "defaultContentBox": true,
+      "tagNameStyleIsolation": "legacy",
+      "disableABTest": true,
+      "sdkVersionBegin": "3.0.0",
+      "sdkVersionEnd": "15.255.255"
+    }
+  },
+  "componentFramework": "glass-easel",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

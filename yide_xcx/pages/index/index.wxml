@@ -1,0 +1,57 @@
+<view class="container">
+  <view class="today-card">
+    <view class="stats-row">
+      <view class="today-item">
+        <text class="today-label">营收: ￥{{total_amount}}</text>
+      </view>
+      <view class="today-item" style="justify-content: flex-end;">
+        <text class="today-label">件数: {{today_count}}</text>
+      </view>
+    </view>
+
+    <view class="order-check-section">
+      <view class="search-box">
+        <input placeholder="输入姓名或单号后4位核销" bindinput="onSearchInput" value="{{searchKey}}"
+          placeholder-style="color:#ccc;" />
+        <button bindtap="searchOrder">搜索</button>
+      </view>
+
+      <view class="search-result" wx:if="{{pendingOrder}}">
+        <view class="order-brief">
+          <text>👤 {{pendingOrder.customer_name}}</text>
+          <text>💰 ￥{{pendingOrder.total_price}}</text>
+        </view>
+        <button class="verify-btn" type="warn" bindtap="verifyOrder" data-id="{{pendingOrder.id}}">确认取货</button>
+      </view>
+    </view>
+  </view>
+
+<view class="header">一得书苑 · 实时清单</view>
+
+<view class="cart-card">
+  <view wx:if="{{cart.length > 0}}">
+    <view class="item-row" wx:for="{{cart}}" wx:key="id">
+      <text class="item-name">{{item.name}}</text>
+      <view class="item-info">
+        <text class="item-price">￥{{item.price}}</text>
+        <text class="stock-warning" wx:if="{{item.remaining_stock < 5}}">
+          (补货: {{item.remaining_stock}})
+        </text>
+      </view>
+    </view>
+  </view>
+  <view wx:if="{{cart.length > 0}}"></view>
+  <view wx:else class="empty-tips" style="padding-top:100rpx;">
+    <text>欢迎使用一得书苑收银系统</text>
+  </view>
+</view>
+
+
+
+<view class="footer">
+  <text class="total-label">应收合计：</text>
+  <text class="total-amount">￥{{total}}</text>
+</view>
+
+<button class="clear-btn" bindtap="onFinish">收款完成/清空</button>
+</view>
