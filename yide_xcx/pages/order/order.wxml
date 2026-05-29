@@ -19,5 +19,5 @@
     <view class="tips">* 请务必填写真实姓名，方便柜台取货</view>
   </view>
 
-  <button class="submit-btn" type="primary" bindtap="submitOrder">提交订单</button>
+  <button class="submit-btn" type="primary" bindtap="submitOrder" loading="{{submitting}}" disabled="{{submitting}}">提交订单</button>
 </view>

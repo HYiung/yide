@@ -11,6 +11,7 @@ urlpatterns = [
     path('checkout_cart/', views.checkout_cart, name='checkout_cart'),  # 小程序结账用
     path('get_product_by_barcode/', views.get_product_by_barcode, name='get_product_by_barcode'),  # 仅查价调用
     path('get_today_stats/', views.get_today_stats, name='get_today_stats'),  # 今日销售额调用
+    path('quick_add_product/', views.quick_add_product, name='quick_add_product'),  # 小程序扫码入库
     path('api/check_role/', views.check_role, name='check_role'),  # 小程序openid白名单
     path('api/mall_products/', views.get_mall_products, name='mall_products'),  # 小程序线上商城商品
     path('api/submit_order/', views.submit_order, name='submit_order'),  # 小程序线上商城结算
