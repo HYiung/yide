@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from .models import Product, SaleHistory, AdminUser, OrderItem, Order
@@ -34,16 +35,17 @@ class OrderAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         # 如果是修改操作，且状态被改成了“已完成(1)”
         if change and obj.status == 1:
-            # 这里的 pk 是主键，用来获取修改前的原始数据
             old_obj = Order.objects.get(pk=obj.pk)
             # 只有从“待取货(0)”变成“已完成(1)”时才触发扣库存
             if old_obj.status == 0:
                 with transaction.atomic():
-                    # 通过 related_name='items' 获取所有商品明细
-                    for item in obj.items.all():
+                    order_items = obj.items.select_related('product').select_for_update()
+                    for item in order_items:
                         product = item.product
+                        if product.stock < item.count:
+                            raise ValidationError(f'{product.name}库存不足，当前仅剩{product.stock}件')
                         product.stock -= item.count
-                        product.save()
+                        product.save(update_fields=['stock'])
 
                         # 记录到销售历史，这样 get_today_stats 就能统计到这笔收入
                         SaleHistory.objects.create(
@@ -51,6 +53,8 @@ class OrderAdmin(admin.ModelAdmin):
                             price=product.price,
                             quantity=item.count
                         )
+                    super().save_model(request, obj, form, change)
+                return
         super().save_model(request, obj, form, change)
 
 # 3. 店主身份确认
