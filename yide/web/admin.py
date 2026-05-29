@@ -1,7 +1,9 @@
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from .models import Product, SaleHistory, AdminUser, OrderItem, Order
+from .models import AdminUser, Order, OrderItem, Product, SaleHistory
+
 
 # 1. 订单详情嵌入
 class OrderItemInline(admin.TabularInline):
@@ -9,9 +11,8 @@ class OrderItemInline(admin.TabularInline):
     extra = 0
     readonly_fields = ('product', 'count')
 
-# 2. 商城订单管理
-# admin.py
 
+# 2. 商城订单管理
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     # 重点：把 order_sn 放在第一位，方便长辈核对编号
@@ -40,10 +41,15 @@ class OrderAdmin(admin.ModelAdmin):
             if old_obj.status == 0:
                 with transaction.atomic():
                     # 通过 related_name='items' 获取所有商品明细
-                    for item in obj.items.all():
-                        product = item.product
+                    for item in obj.items.select_related('product').all():
+                        product = Product.objects.select_for_update().get(pk=item.product_id)
+                        if product.stock < item.count:
+                            raise ValidationError(
+                                f'{product.name} 库存不足，当前库存 {product.stock}，需要 {item.count}'
+                            )
+
                         product.stock -= item.count
-                        product.save()
+                        product.save(update_fields=['stock'])
 
                         # 记录到销售历史，这样 get_today_stats 就能统计到这笔收入
                         SaleHistory.objects.create(
@@ -53,11 +59,13 @@ class OrderAdmin(admin.ModelAdmin):
                         )
         super().save_model(request, obj, form, change)
 
+
 # 3. 店主身份确认
 @admin.register(AdminUser)
 class AdminUserAdmin(admin.ModelAdmin):
     list_display = ('name', 'openid')
     search_fields = ('name', 'openid')
+
 
 # 4. 商品库管理
 @admin.register(Product)
@@ -67,6 +75,7 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ('category', 'create_time') # 增加分类筛选
     search_fields = ('barcode', 'name')
     ordering = ('-create_time',)
+
 
 # 5. 销售历史管理
 @admin.register(SaleHistory)

@@ -1,0 +1,32 @@
+const BASE_URL = 'http://192.168.1.138:8000';
+
+function buildUrl(path) {
+  if (/^https?:\/\//.test(path)) {
+    return path;
+  }
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${BASE_URL}${normalizedPath}`;
+}
+
+function request(options) {
+  const { url, ...rest } = options;
+  return new Promise((resolve, reject) => {
+    wx.request({
+      ...rest,
+      url: buildUrl(url),
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data || {});
+        } else {
+          reject(new Error(`服务器返回异常：${res.statusCode}`));
+        }
+      },
+      fail: reject
+    });
+  });
+}
+
+module.exports = {
+  BASE_URL,
+  request
+};
