@@ -9,7 +9,10 @@ Page({
     total: '0.00',
     lastOrderCount: 0, // 用于记录上次订单数，防止重复弹窗
     searchKey: '',
-    pendingOrder: null
+    pendingOrder: null,
+    pendingOrders: [],
+    lowStockProducts: [],
+    lowStockCount: 0
   },
 
   onLoad: function () {
@@ -48,6 +51,8 @@ Page({
     this.fetchCart();
     this.fetchTodayStats();
     this.checkMallOrders();
+    this.fetchPendingOrders();
+    this.fetchLowStockProducts();
   },
 
   // 获取扫码收银台的数据
@@ -141,11 +146,46 @@ Page({
             showCancel: false
           });
         }
-        this.setData({ lastOrderCount: count });
+        this.setData({
+          lastOrderCount: count,
+          lowStockCount: Number(data.low_stock_count || 0)
+        });
       })
       .catch((err) => {
         console.error('检查商城订单失败', err);
       });
+  },
+
+
+  // 获取待取货订单列表，方便店主不用逐个搜索也能看到待办
+  fetchPendingOrders: function () {
+    api.request({
+      url: '/api/pending_orders/',
+      data: { limit: 5 }
+    }).then((data) => {
+      if (data.status === 'success') {
+        this.setData({ pendingOrders: data.list || [] });
+      }
+    }).catch((err) => {
+      console.error('获取待取货订单失败', err);
+    });
+  },
+
+  // 获取低库存商品列表，提醒及时补货
+  fetchLowStockProducts: function () {
+    api.request({
+      url: '/api/low_stock_products/',
+      data: { threshold: 5, limit: 5 }
+    }).then((data) => {
+      if (data.status === 'success') {
+        this.setData({
+          lowStockProducts: data.list || [],
+          lowStockCount: Number(data.total_count || 0)
+        });
+      }
+    }).catch((err) => {
+      console.error('获取低库存商品失败', err);
+    });
   },
 
   // 获取今日营收统计
