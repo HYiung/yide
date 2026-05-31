@@ -117,3 +117,45 @@ class OrderFlowTests(TestCase):
         self.assertEqual(short_stock.stock, 1)
         self.assertEqual(order.status, 0)
         self.assertEqual(SaleHistory.objects.count(), 0)
+
+
+class InventoryApiTests(TestCase):
+    def test_low_stock_products_returns_threshold_matches(self):
+        low = Product.objects.create(barcode='6900301', name='作业本', price=Decimal('2.50'), stock=2)
+        Product.objects.create(barcode='6900302', name='笔芯', price=Decimal('1.00'), stock=8)
+
+        response = self.client.get('/api/low_stock_products/', {'threshold': 5})
+
+        data = response.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['threshold'], 5)
+        self.assertEqual([item['id'] for item in data['list']], [low.id])
+
+    def test_pending_orders_includes_items_for_dashboard(self):
+        product = Product.objects.create(barcode='6900303', name='便利贴', price=Decimal('3.00'), stock=5)
+        order = Order.objects.create(customer_name='王五', total_price=Decimal('6.00'), status=0)
+        OrderItem.objects.create(order=order, product=product, count=2)
+
+        response = self.client.get('/api/pending_orders/')
+
+        data = response.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['list'][0]['customer_name'], '王五')
+        self.assertEqual(data['list'][0]['items'][0]['name'], '便利贴')
+        self.assertEqual(data['list'][0]['items'][0]['count'], 2)
+
+    def test_submit_order_aggregates_duplicate_product_lines(self):
+        product = Product.objects.create(barcode='6900304', name='铅笔', price=Decimal('1.00'), stock=2)
+
+        response = self.client.post(
+            '/api/submit_order/',
+            data=json.dumps({
+                'name': '赵六',
+                'cart': [{'id': product.id, 'num': 2}, {'id': product.id, 'num': 1}],
+                'total': '3.00',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.json()['status'], 'fail')
+        self.assertEqual(Order.objects.count(), 0)
