@@ -33,7 +33,7 @@
     <view class="item-row" wx:for="{{cart}}" wx:key="id">
       <text class="item-name">{{item.name}}</text>
       <view class="item-info">
-        <text class="item-price">￥{{item.price}}</text>
+        <text class="item-price">￥{{item.price}} × {{item.quantity}}</text>
         <text class="stock-warning" wx:if="{{item.remaining_stock < 5}}">
           (补货: {{item.remaining_stock}})
         </text>
