@@ -12,6 +12,7 @@
       <view class="info">
         <text class="name">{{item.name}}</text>
         <text class="price">￥{{item.price}}</text>
+        <text class="stock">库存：{{item.stock}}</text>
         <button size="mini" type="primary" bindtap="addToCart" data-item="{{item}}">加入购物车</button>
       </view>
     </view>
