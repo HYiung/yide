@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from .models import CartItem, Order, Product, SaleHistory
+from .models import CartItem, Order, OrderItem, Product, SaleHistory
 
 
 class ProductLookupTests(TestCase):
@@ -36,6 +36,22 @@ class CartFlowTests(TestCase):
         self.assertEqual(response.json()['status'], 'error')
         self.assertEqual(product.stock, 1)
         self.assertEqual(SaleHistory.objects.count(), 0)
+
+    def test_checkout_short_later_item_does_not_partially_commit(self):
+        in_stock = Product.objects.create(barcode='6900101', name='中性笔', price=Decimal('3.00'), stock=5)
+        short_stock = Product.objects.create(barcode='6900102', name='便签', price=Decimal('2.00'), stock=1)
+        CartItem.objects.create(product=in_stock, quantity=2)
+        CartItem.objects.create(product=short_stock, quantity=2)
+
+        response = self.client.get('/checkout_cart/')
+
+        in_stock.refresh_from_db()
+        short_stock.refresh_from_db()
+        self.assertEqual(response.json()['status'], 'error')
+        self.assertEqual(in_stock.stock, 5)
+        self.assertEqual(short_stock.stock, 1)
+        self.assertEqual(SaleHistory.objects.count(), 0)
+        self.assertEqual(CartItem.objects.count(), 2)
 
 
 class SalesStatsTests(TestCase):
@@ -79,3 +95,25 @@ class OrderFlowTests(TestCase):
         self.assertEqual(verify_response.json()['status'], 'fail')
         self.assertEqual(product.stock, 1)
         self.assertEqual(order.status, 0)
+
+    def test_verify_order_short_later_item_does_not_partially_commit(self):
+        in_stock = Product.objects.create(barcode='6900201', name='文件夹', price=Decimal('6.00'), stock=4)
+        short_stock = Product.objects.create(barcode='6900202', name='胶带', price=Decimal('5.00'), stock=1)
+        order = Order.objects.create(customer_name='李四', total_price=Decimal('17.00'), status=0)
+        OrderItem.objects.create(order=order, product=in_stock, count=2)
+        OrderItem.objects.create(order=order, product=short_stock, count=2)
+
+        response = self.client.post(
+            '/api/verify_order/',
+            data=json.dumps({'id': order.id}),
+            content_type='application/json',
+        )
+
+        in_stock.refresh_from_db()
+        short_stock.refresh_from_db()
+        order.refresh_from_db()
+        self.assertEqual(response.json()['status'], 'fail')
+        self.assertEqual(in_stock.stock, 4)
+        self.assertEqual(short_stock.stock, 1)
+        self.assertEqual(order.status, 0)
+        self.assertEqual(SaleHistory.objects.count(), 0)
