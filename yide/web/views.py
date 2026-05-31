@@ -133,6 +133,7 @@ def checkout_cart(request):
 
     try:
         with transaction.atomic():
+            locked_cart_items = []
             for item in cart_items.select_for_update():
                 product = Product.objects.select_for_update().get(pk=item.product_id)
                 if product.stock < item.quantity:
@@ -140,7 +141,9 @@ def checkout_cart(request):
                         'status': 'error',
                         'message': f'{product.name} 库存不足，当前库存 {product.stock}，需要 {item.quantity}'
                     })
+                locked_cart_items.append((item, product))
 
+            for item, product in locked_cart_items:
                 # 1. 记录到销售历史 (这是统计的来源！)
                 SaleHistory.objects.create(
                     product_name=product.name,
@@ -360,6 +363,7 @@ def verify_order(request):
     try:
         with transaction.atomic():
             order = Order.objects.select_for_update().get(id=order_id, status=0)
+            locked_order_items = []
             # 扣库存逻辑（和你 admin.py 里写的一样）
             for item in order.items.select_related('product').all():
                 product = Product.objects.select_for_update().get(pk=item.product_id)
@@ -368,7 +372,9 @@ def verify_order(request):
                         'status': 'fail',
                         'msg': f'{product.name} 库存不足，当前库存 {product.stock}，需要 {item.count}'
                     })
+                locked_order_items.append((item, product))
 
+            for item, product in locked_order_items:
                 product.stock -= item.count
                 product.save(update_fields=['stock'])
                 # 存入销售历史
