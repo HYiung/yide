@@ -17,6 +17,10 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python yide/manage.py check
 python yide/manage.py test
+# 也可以显式指定 Django app：python yide/manage.py test web
+```
+
+如果当前网络环境无法访问 PyPI，需要先配置一个可以访问的代理或包镜像；确认 `python -m pip install Django==3.2.23` 能成功后，再运行上面的 Django 检查和测试命令。如果从仓库根目录执行测试遇到 unittest 去导入 `yide.web` 或 `yide.yide`，请更新到包含 manage.py 修复的版本，或临时使用 `python yide/manage.py test web`。
 ```
 
 如果当前网络环境无法访问 PyPI，需要先配置一个可以访问的代理或包镜像；确认 `python -m pip install Django==3.2.23` 能成功后，再运行上面的 Django 检查和测试命令。
