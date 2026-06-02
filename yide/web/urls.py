@@ -16,6 +16,9 @@ urlpatterns = [
     path('api/mall_products/', views.get_mall_products, name='mall_products'),  # 小程序线上商城商品
     path('api/submit_order/', views.submit_order, name='submit_order'),  # 小程序线上商城结算
     path('api/get_new_order_count/', views.get_new_order_count, name='get_new_order_count'),  # 查询状态为 0 (待取货) 的订单数量
+    path('api/pending_orders/', views.get_pending_orders, name='pending_orders'),  # 待取货订单列表
+    path('api/low_stock_products/', views.get_low_stock_products, name='low_stock_products'),  # 低库存提醒
+    path('api/sales_report/', views.get_sales_report, name='sales_report'),  # 销售报表
     path('api/search_order/', views.search_order, name='search_order'),  # 查询状态为 0 (待取货) 的订单
     path('api/verify_order/', views.verify_order, name='verify_order'),  # 核销状态为 0 (待取货) 的订单
 ]

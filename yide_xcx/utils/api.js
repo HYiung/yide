@@ -28,5 +28,6 @@ function request(options) {
 
 module.exports = {
   BASE_URL,
+  buildUrl,
   request
 };

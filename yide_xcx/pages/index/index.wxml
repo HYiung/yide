@@ -21,7 +21,31 @@
           <text>👤 {{pendingOrder.customer_name}}</text>
           <text>💰 ￥{{pendingOrder.total_price}}</text>
         </view>
+        <view class="order-items" wx:if="{{pendingOrder.items.length > 0}}">
+          <text wx:for="{{pendingOrder.items}}" wx:key="product_id">{{item.name}} × {{item.count}} </text>
+        </view>
         <button class="verify-btn" type="warn" bindtap="verifyOrder" data-id="{{pendingOrder.id}}">确认取货</button>
+      </view>
+    </view>
+
+    <button class="report-link" bindtap="goToReport">查看销售报表</button>
+
+    <view class="dashboard-panel" wx:if="{{pendingOrders.length > 0}}">
+      <view class="panel-title">待取货订单（{{lastOrderCount}}）</view>
+      <view class="pending-row" wx:for="{{pendingOrders}}" wx:key="id">
+        <view class="pending-main">
+          <text class="pending-name">{{item.customer_name}}</text>
+          <text class="pending-sn">{{item.order_sn}}</text>
+        </view>
+        <button size="mini" type="warn" bindtap="verifyOrder" data-id="{{item.id}}">核销</button>
+      </view>
+    </view>
+
+    <view class="dashboard-panel low-stock-panel" wx:if="{{lowStockProducts.length > 0}}">
+      <view class="panel-title">低库存提醒（{{lowStockCount}}）</view>
+      <view class="low-stock-row" wx:for="{{lowStockProducts}}" wx:key="id">
+        <text>{{item.name}}</text>
+        <text class="low-stock-num">剩 {{item.stock}}</text>
       </view>
     </view>
   </view>

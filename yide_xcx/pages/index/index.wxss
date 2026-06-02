@@ -189,3 +189,75 @@ page {
   border-radius: 50rpx !important;
   font-weight: bold;
 }
+.order-items {
+  color: #666;
+  font-size: 24rpx;
+  line-height: 1.6;
+  margin-bottom: 16rpx;
+}
+
+.dashboard-panel {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 16rpx;
+  margin-top: 22rpx;
+  padding: 18rpx 20rpx;
+  box-sizing: border-box;
+}
+
+.panel-title {
+  color: #333;
+  font-size: 28rpx;
+  font-weight: 700;
+  margin-bottom: 12rpx;
+}
+
+.pending-row,
+.low-stock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12rpx 0;
+  border-top: 1rpx solid #f0f0f0;
+}
+
+.pending-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pending-name {
+  color: #222;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.pending-sn {
+  color: #888;
+  font-size: 22rpx;
+  margin-top: 4rpx;
+}
+
+.low-stock-panel {
+  border: 2rpx solid #ffd666;
+}
+
+.low-stock-row {
+  color: #333;
+  font-size: 26rpx;
+}
+
+.low-stock-num {
+  color: #ff4d4f;
+  font-weight: bold;
+}
+
+
+.report-link {
+  margin-top: 22rpx;
+  background: #ffffff !important;
+  color: #07c160 !important;
+  border-radius: 40rpx !important;
+  font-size: 28rpx !important;
+  font-weight: 700;
+}

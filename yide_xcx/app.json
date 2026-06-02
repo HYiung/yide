@@ -3,7 +3,8 @@
     "pages/mall/mall",
     "pages/index/index",
     "pages/product/product",
-    "pages/order/order"
+    "pages/order/order",
+    "pages/report/report"
   ],
   "tabBar": {
     "color": "#999999",

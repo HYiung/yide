@@ -1,7 +1,9 @@
 import json
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 import requests
+from django.conf import settings
 from django.db import transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
 from django.http import JsonResponse
@@ -12,13 +14,39 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
 
 
+def get_request_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def serialize_order(order):
+    items = []
+    for item in order.items.select_related('product').all():
+        items.append({
+            'product_id': item.product_id,
+            'name': item.product.name,
+            'count': item.count,
+            'price': str(item.product.price),
+        })
+
+    return {
+        'id': order.id,
+        'customer_name': order.customer_name,
+        'total_price': str(order.total_price),
+        'order_sn': order.order_sn,
+        'create_time': order.create_time.strftime('%Y-%m-%d %H:%M'),
+        'items': items,
+    }
+
+
 def check_role(request):
     code = request.GET.get('code')
-    # 填入你小程序的真实信息
-    appid = 'wxabca86f6f8d49d0b'
-    secret = 'e8f8c1fea7ac16f8dc33b8257269ea36'
+    appid = getattr(settings, 'WECHAT_APPID', '')
+    secret = getattr(settings, 'WECHAT_SECRET', '')
 
-    if not code:
+    if not code or not appid or not secret:
         return JsonResponse({'role': 'customer'})
 
     # 1. 换取 OpenID 的逻辑直接写在这里
@@ -203,7 +231,7 @@ def quick_add_product(request):
 
     try:
         stock = int(request.GET.get('stock', 0))
-        price_value = Decimal(str(price))
+        price_value = Decimal(str(price)).quantize(Decimal('0.01'))
     except (TypeError, ValueError, InvalidOperation):
         return JsonResponse({'status': 'fail', 'msg': '价格或库存格式不正确'})
 
@@ -272,15 +300,23 @@ def submit_order(request):
             return JsonResponse({'status': 'fail', 'msg': '购物车不能为空'})
 
         with transaction.atomic():
-            order_items = []
-            total = Decimal('0.00')
+            requested_items = {}
             for item in cart:
-                product_id = item.get('id')
+                product_id = int(item.get('id'))
                 count = int(item.get('num', 0))
                 if count <= 0:
                     return JsonResponse({'status': 'fail', 'msg': '商品数量必须大于0'})
+                requested_items[product_id] = requested_items.get(product_id, 0) + count
 
-                product = Product.objects.select_for_update().get(id=product_id)
+            order_items = []
+            total = Decimal('0.00')
+            products = Product.objects.select_for_update().filter(id__in=requested_items.keys())
+            product_map = {product.id: product for product in products}
+            if len(product_map) != len(requested_items):
+                return JsonResponse({'status': 'fail', 'msg': '订单商品数据不正确'})
+
+            for product_id, count in requested_items.items():
+                product = product_map[product_id]
                 if product.stock < count:
                     return JsonResponse({
                         'status': 'fail',
@@ -318,7 +354,79 @@ def submit_order(request):
 def get_new_order_count(request):
     # 查询状态为 0 (待取货) 的订单数量
     count = Order.objects.filter(status=0).count()
-    return JsonResponse({'count': count})
+    low_stock_count = Product.objects.filter(stock__lte=5).count()
+    return JsonResponse({'count': count, 'low_stock_count': low_stock_count})
+
+
+def get_pending_orders(request):
+    limit = min(max(get_request_int(request.GET.get('limit'), 10), 1), 50)
+    orders = Order.objects.filter(status=0).prefetch_related('items__product').order_by('create_time')[:limit]
+    return JsonResponse({
+        'status': 'success',
+        'list': [serialize_order(order) for order in orders]
+    }, json_dumps_params={'ensure_ascii': False})
+
+
+def get_low_stock_products(request):
+    threshold = min(max(get_request_int(request.GET.get('threshold'), 5), 0), 9999)
+    limit = min(max(get_request_int(request.GET.get('limit'), 10), 1), 100)
+    query = Product.objects.filter(stock__lte=threshold).order_by('stock', 'name')
+    products = query[:limit]
+    return JsonResponse({
+        'status': 'success',
+        'threshold': threshold,
+        'total_count': query.count(),
+        'list': list(products.values('id', 'barcode', 'name', 'stock', 'price', 'category'))
+    }, json_dumps_params={'ensure_ascii': False})
+
+
+
+def get_sales_report(request):
+    days = min(max(get_request_int(request.GET.get('days'), 7), 1), 31)
+    today = timezone.now().date()
+    start_date = today - timedelta(days=days - 1)
+
+    line_total = ExpressionWrapper(
+        F('price') * F('quantity'),
+        output_field=DecimalField(max_digits=12, decimal_places=2)
+    )
+    sales = SaleHistory.objects.filter(sale_date__date__gte=start_date)
+    stats = sales.aggregate(
+        total_amount=Sum(line_total),
+        total_count=Sum('quantity')
+    )
+    top_products = sales.values('product_name').annotate(
+        quantity=Sum('quantity'),
+        amount=Sum(line_total)
+    ).order_by('-quantity', 'product_name')[:5]
+    records = sales.order_by('-sale_date').values(
+        'product_name', 'price', 'quantity', 'sale_date'
+    )[:50]
+
+    return JsonResponse({
+        'status': 'success',
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': today.strftime('%Y-%m-%d'),
+        'total_amount': str(stats['total_amount'] or Decimal('0.00')),
+        'total_count': int(stats['total_count'] or 0),
+        'top_products': [
+            {
+                'product_name': item['product_name'],
+                'quantity': int(item['quantity'] or 0),
+                'amount': str(item['amount'] or Decimal('0.00')),
+            }
+            for item in top_products
+        ],
+        'records': [
+            {
+                'product_name': item['product_name'],
+                'price': str(item['price']),
+                'quantity': item['quantity'],
+                'sale_date': item['sale_date'].strftime('%Y-%m-%d %H:%M'),
+            }
+            for item in records
+        ]
+    }, json_dumps_params={'ensure_ascii': False})
 
 
 # 1. 搜索订单接口
@@ -337,12 +445,7 @@ def search_order(request):
     if order:
         return JsonResponse({
             'status': 'success',
-            'order': {
-                'id': order.id,
-                'customer_name': order.customer_name,
-                'total_price': str(order.total_price),
-                'order_sn': order.order_sn
-            }
+            'order': serialize_order(order)
         }, json_dumps_params={'ensure_ascii': False})  # 关键：禁止转义中文
 
     return JsonResponse({'status': 'fail', 'msg': '未找到匹配订单'})

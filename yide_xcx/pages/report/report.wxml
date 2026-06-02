@@ -1,0 +1,39 @@
+<view class="container">
+  <view class="header">销售报表</view>
+
+  <view class="range-tabs">
+    <button size="mini" class="{{days == 7 ? 'active' : ''}}" bindtap="switchDays" data-days="7">近7天</button>
+    <button size="mini" class="{{days == 30 ? 'active' : ''}}" bindtap="switchDays" data-days="30">近30天</button>
+  </view>
+
+  <view class="summary-card">
+    <text class="date-range">{{startDate}} 至 {{endDate}}</text>
+    <text class="amount">￥{{totalAmount}}</text>
+    <text class="count">售出 {{totalCount}} 件</text>
+  </view>
+
+  <view class="section">
+    <view class="section-title">热销商品</view>
+    <view wx:if="{{topProducts.length > 0}}">
+      <view class="rank-row" wx:for="{{topProducts}}" wx:key="productName">
+        <text>{{index + 1}}. {{item.productName}}</text>
+        <text>{{item.quantity}}件 / ￥{{item.amount}}</text>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无热销数据</view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">最近销售记录</view>
+    <view wx:if="{{records.length > 0}}">
+      <view class="record-row" wx:for="{{records}}" wx:key="saleDate">
+        <view>
+          <text class="record-name">{{item.productName}}</text>
+          <text class="record-date">{{item.saleDate}}</text>
+        </view>
+        <text>￥{{item.price}} × {{item.quantity}}</text>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无销售记录</view>
+  </view>
+</view>
