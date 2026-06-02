@@ -315,6 +315,14 @@ def submit_order(request):
             if len(product_map) != len(requested_items):
                 return JsonResponse({'status': 'fail', 'msg': '订单商品数据不正确'})
 
+
+            order_items = []
+            total = Decimal('0.00')
+            products = Product.objects.select_for_update().filter(id__in=requested_items.keys())
+            product_map = {product.id: product for product in products}
+            if len(product_map) != len(requested_items):
+                return JsonResponse({'status': 'fail', 'msg': '订单商品数据不正确'})
+
             for product_id, count in requested_items.items():
                 product = product_map[product_id]
                 if product.stock < count:
