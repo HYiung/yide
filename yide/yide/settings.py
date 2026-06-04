@@ -26,11 +26,12 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-c=5lhznpp#&238
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = ['.vercel.app', '.now.sh', 'localhost', '127.0.0.1']
 
-WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
-WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
-
+# WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
+# WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
+WECHAT_APPID = 'YOUR_WECHAT_APPID'
+WECHAT_SECRET="YOUR_WECHAT_SECRET"
 
 # Application definition
 
