@@ -8,6 +8,10 @@ https://docs.djangoproject.com/en/3.2/howto/deployment/wsgi/
 """
 
 import os
+import sys
+
+# 将项目根目录添加到 Python 路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from django.core.wsgi import get_wsgi_application
 
