@@ -78,11 +78,25 @@ WSGI_APPLICATION = 'yide.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
+# 检查是否运行在 Vercel 云端环境
+if os.environ.get('VERCEL'):
+    # 如果在云端，强行把 SQLite 数据库指向服务器唯一可写的 /tmp 临时目录
+    db_path = '/tmp/db.sqlite3'
 
+    # 👈 【核心解密】如果临时数据库不存在，需要把随 Git 传上去的初始数据库复制一份过去
+    # 否则云端会提示找不到表
+    base_db = os.path.join(BASE_DIR, 'db.sqlite3')
+    if not os.path.exists(db_path) and os.path.exists(base_db):
+        import shutil
+
+        shutil.copy2(base_db, db_path)
+else:
+    # 本地电脑开发，依然用原样
+    db_path = os.path.join(BASE_DIR, 'db.sqlite3')
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': db_path,
     }
 }
 
