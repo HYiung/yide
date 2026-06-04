@@ -1,4 +1,5 @@
-const BASE_URL = 'http://192.168.1.138:8000';
+// const BASE_URL = 'http://192.168.1.138:8000';
+const BASE_URL = 'https://yide-hy.vercel.app/';
 
 function buildUrl(path) {
   if (/^https?:\/\//.test(path)) {
