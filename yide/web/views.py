@@ -42,10 +42,24 @@ def serialize_order(order):
 
 def check_role(request):
     code = request.GET.get('code')
+    if not code and request.method == 'POST':
+        import json
+        try:
+            # 如果前端发的是标准的 json post
+            data = json.loads(request.body)
+            code = data.get('code')
+        except:
+            # 如果前端发的是 form 表单 post
+            code = request.POST.get('code')
+
     appid = getattr(settings, 'WECHAT_APPID', '')
     secret = getattr(settings, 'WECHAT_SECRET', '')
 
+    # 打印一下看看拿没拿到，方便调试
+    print(f"--- 收到请求，当前 code 为: {code} ---")
+
     if not code or not appid or not secret:
+        print("--- 缺少必要参数，直接判定为普通顾客 ---")
         return JsonResponse({'role': 'customer'})
 
     # 1. 换取 OpenID 的逻辑直接写在这里
