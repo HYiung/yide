@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "src": "yide/yide/wsgi.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "yide/yide/wsgi.py"
+    }
+  ]
+}
