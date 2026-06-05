@@ -15,5 +15,8 @@
       "src": "/(.*)",
       "dest": "yide/yide/wsgi.py"
     }
-  ]
+  ],
+  "scripts": {
+    "vercel-build": "python yide/manage.py migrate --noinput"
+  }
 }
