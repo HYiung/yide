@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 
 import os
 from pathlib import Path
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -79,25 +80,22 @@ WSGI_APPLICATION = 'yide.wsgi.application'
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 # 检查是否运行在 Vercel 云端环境
 if os.environ.get('VERCEL'):
-    # 如果在云端，强行把 SQLite 数据库指向服务器唯一可写的 /tmp 临时目录
-    db_path = '/tmp/db.sqlite3'
-
-    # 👈 【核心解密】如果临时数据库不存在，需要把随 Git 传上去的初始数据库复制一份过去
-    # 否则云端会提示找不到表
-    base_db = os.path.join(BASE_DIR, 'db.sqlite3')
-    if not os.path.exists(db_path) and os.path.exists(base_db):
-        import shutil
-
-        shutil.copy2(base_db, db_path)
-else:
-    # 本地电脑开发，依然用原样
-    db_path = os.path.join(BASE_DIR, 'db.sqlite3')
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': db_path,
+    # 🌟 生产环境：秒速解析 Vercel + Neon 自动注入的云端数据库链接
+    DATABASES = {
+        'default': dj_database_url.config(
+            env='DATABASE_URL',  # Neon 注入的标准变量名
+            conn_max_age=600,    # 保持连接池复用，提升小程序接口响应速度
+            ssl_require=True     # 远程连接云数据库必须开启 SSL 安全加密
+        )
     }
-}
+else:
+    # 💻 本地电脑测试环境：依然用你本机的 SQLite，互不干扰
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators

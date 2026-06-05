@@ -31,4 +31,17 @@ if current_dir not in sys.path:
 # 就会完美等同于找：parent_dir 目录下的 'yide/settings.py'
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'yide.settings')
 
+# 👇 云端自动迁移和创建管理员
+from django.core.management import call_command
+
+try:
+    call_command('migrate', interactive=False)
+
+    from django.contrib.auth.models import User
+
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser('admin', 'admin@example.com', 'Admin123456')
+except Exception as e:
+    print(f"Auto-migration failed: {e}")
+
 application = get_wsgi_application()
