@@ -139,3 +139,9 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# 把 Session 存储从数据库转移到浏览器客户端加密 Cookie
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+
+# 可选：确保即使重启也保持一小段时间登录（防止 Vercel 刷新后失效）
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
