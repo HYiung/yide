@@ -1,4 +1,0 @@
-wxabca86f6f8d49d0b==>YOUR_WECHAT_APPID
-e8f8c1fea7ac16f8dc33b8257269ea36==>YOUR_WECHAT_SECRET
-npg_PmG1s5UlhHqd==>YOUR_DB_PASSWORD
-postgresql://neondb_owner:npg_PmG1s5UlhHqd@ep-muddy-dust-aomqhu1b-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require==>YOUR_NEON_DATABASE_URL
