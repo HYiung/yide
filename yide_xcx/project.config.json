@@ -1,5 +1,5 @@
 {
-  "appid": "YOUR_WECHAT_APPID",
+  "appid": "YOUR_APPID",
   "compileType": "miniprogram",
   "libVersion": "trial",
   "packOptions": {

@@ -212,7 +212,7 @@ def get_today_stats(request):
     today = now.date()
 
     # 只统计 SaleHistory 即可。
-    # 因为你的 verify_order 逻辑已经很棒了：它核销后会自动把商城订单拆解并存入 SaleHistory。
+    # 它核销后会自动把商城订单拆解并存入 SaleHistory。
     line_total = ExpressionWrapper(
         F('price') * F('quantity'),
         output_field=DecimalField(max_digits=12, decimal_places=2)

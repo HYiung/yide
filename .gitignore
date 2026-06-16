@@ -4,3 +4,13 @@ __pycache__/
 *.pyc
 db.sqlite3
 .DS_Store
+
+# Environment variables (contain secrets)
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+*.swp
+*.swo
