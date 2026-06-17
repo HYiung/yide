@@ -16,16 +16,19 @@ Page({
     ],
     cart: [],         // 购物车列表
     totalPrice: '0.00',
-    totalCount: 0
+    totalCount: 0,
+    isAdmin: false
   },
 
   onLoad: function () {
+    this.setData({ isAdmin: !!wx.getStorageSync('is_admin') });
     this.quietCheckIdentity();
     this.fetchData(this.data.activeCat);
   },
 
   onShow: function() {
     // 每次页面显示时重新加载数据（tab 切换、navigateBack 等场景）
+    this.setData({ isAdmin: !!wx.getStorageSync('is_admin') });
     this.fetchData(this.data.activeCat);
     const cart = wx.getStorageSync('cart') || [];
     this.calculateTotal(cart);
@@ -96,6 +99,10 @@ Page({
 
   // 加入购物车 (主列表按钮)
   addToCart: function (e) {
+    if (this.data.isAdmin) {
+      wx.showToast({ title: '店主仅可浏览，顾客才能购买', icon: 'none', duration: 1500 });
+      return;
+    }
     const product = e.currentTarget.dataset.item;
     const stock = this.getProductStock(product);
     let cart = this.data.cart.slice();
@@ -123,6 +130,7 @@ Page({
 
   // 清单内加数量
   plusItem: function(e) {
+    if (this.data.isAdmin) return;
     const id = e.currentTarget.dataset.id;
     let cart = this.data.cart.slice();
     const index = cart.findIndex(v => v.id === id);
@@ -139,6 +147,7 @@ Page({
 
   // 清单内减数量
   minusItem: function(e) {
+    if (this.data.isAdmin) return;
     const id = e.currentTarget.dataset.id;
     let cart = this.data.cart.slice();
     const index = cart.findIndex(v => v.id === id);
@@ -158,6 +167,7 @@ Page({
 
   // 清空购物车
   clearCart: function() {
+    if (this.data.isAdmin) return;
     wx.showModal({
       title: '提示',
       content: '确定要清空购物车吗？',
@@ -232,6 +242,10 @@ Page({
   },
 
   goToOrder: function() {
+    if (this.data.isAdmin) {
+      wx.showToast({ title: '店主仅可浏览，顾客才能购买', icon: 'none' });
+      return;
+    }
     if (this.data.totalCount <= 0) {
       wx.showToast({ title: '购物车为空', icon: 'none' });
       return;

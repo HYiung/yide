@@ -1,4 +1,6 @@
 <scroll-view class="mall-container" scroll-y="true">
+  <view class="admin-mode-banner" wx:if="{{isAdmin}}">👤 店主浏览模式 · 仅可查看商品信息</view>
+
   <scroll-view class="category-bar" scroll-x="true">
     <view class="cat-item {{activeCat == item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:key="id"
       bindtap="switchCat" data-id="{{item.id}}">{{item.name}}</view>
@@ -13,7 +15,8 @@
         <text class="name">{{item.name}}</text>
         <text class="price">￥{{item.price}}</text>
         <text class="stock">库存：{{item.stock}}</text>
-        <button size="mini" type="primary" bindtap="addToCart" data-item="{{item}}">加入购物车</button>
+        <button wx:if="{{!isAdmin}}" size="mini" type="primary" bindtap="addToCart" data-item="{{item}}">加入购物车</button>
+        <view wx:else class="admin-only-label">🔒 仅顾客可购买</view>
       </view>
     </view>
   </view>
@@ -21,9 +24,9 @@
   <view style="height: 150rpx;"></view>
 </scroll-view>
 
-<view class="cart-mask" wx:if="{{showCartDetail}}" bindtap="toggleCartDetail"></view>
+<view class="cart-mask" wx:if="{{showCartDetail && !isAdmin}}" bindtap="toggleCartDetail"></view>
 
-<view class="cart-detail {{showCartDetail ? 'show' : ''}}">
+<view class="cart-detail {{showCartDetail ? 'show' : ''}}" wx:if="{{!isAdmin}}">
   <view class="cart-header">
     <text>已选商品</text>
     <view class="clear-btn" bindtap="clearCart">
@@ -45,7 +48,7 @@
   </scroll-view>
 </view>
 
-<view class="cart-bar" wx:if="{{totalCount > 0}}">
+<view class="cart-bar" wx:if="{{totalCount > 0 && !isAdmin}}">
   <view class="cart-info" bindtap="toggleCartDetail">
     <view class="cart-icon">
       <text class="badge">{{totalCount}}</text>
