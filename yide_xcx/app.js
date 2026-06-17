@@ -17,6 +17,7 @@ App({
       success: (res) => {
         if (!res.code) {
           wx.setStorageSync('is_admin', false);
+          wx.reLaunch({ url: '/pages/mall/mall' });
           return;
         }
 
@@ -37,11 +38,13 @@ App({
         }).catch((err) => {
           console.error('角色检查请求失败', err);
           wx.setStorageSync('is_admin', false);
+          wx.reLaunch({ url: '/pages/mall/mall' });
         });
       },
       fail: (err) => {
         console.error('微信登录失败', err);
         wx.setStorageSync('is_admin', false);
+        wx.reLaunch({ url: '/pages/mall/mall' });
       }
     });
   },
