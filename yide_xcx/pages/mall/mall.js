@@ -20,20 +20,26 @@ Page({
     cart: [],
     totalPrice: '0.00',
     totalCount: 0,
-    isAdmin: false
+    isAdmin: false,
+    tabIndex: 0
   },
 
   onLoad: function () {
-    this.setData({ isAdmin: !!wx.getStorageSync('is_admin') });
+    const isAdmin = !!wx.getStorageSync('is_admin');
+    this.setData({
+      isAdmin: isAdmin,
+      tabIndex: isAdmin ? 2 : 0
+    });
     this.quietCheckIdentity();
-    if (this.data.isAdmin) {
+    if (isAdmin) {
       wx.setStorageSync('cart', []);
     }
     this.fetchData(this.data.activeCat, this.data.searchKey);
   },
 
   onShow: function() {
-    this.setData({ isAdmin: !!wx.getStorageSync('is_admin') });
+    const isAdmin = !!wx.getStorageSync('is_admin');
+    this.setData({ isAdmin: isAdmin, tabIndex: isAdmin ? 2 : 0 });
     this.fetchData(this.data.activeCat, this.data.searchKey);
     const cart = wx.getStorageSync('cart') || [];
     this.calculateTotal(cart);

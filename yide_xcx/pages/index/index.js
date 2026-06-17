@@ -35,7 +35,7 @@ Page({
     // 顾客请去商城，收银台是店主用的
     const isAdmin = wx.getStorageSync('is_admin');
     if (isAdmin === false) {
-      wx.switchTab({ url: '/pages/mall/mall' });
+      wx.reLaunch({ url: '/pages/mall/mall' });
       return;
     }
     this.refreshDashboard();

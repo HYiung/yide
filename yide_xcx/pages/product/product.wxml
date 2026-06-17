@@ -46,3 +46,5 @@
     <button class="submit-btn" bindtap="submitData" loading="{{submitting}}" disabled="{{submitting}}">完成并入库</button>
   </view>
 </view>
+  <!-- 自定义底部导航 -->
+  <custom-tab-bar activeIndex="1" />

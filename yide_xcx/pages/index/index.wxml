@@ -117,3 +117,5 @@
     </view>
   </view>
 </view>
+  <!-- 自定义底部导航 -->
+  <custom-tab-bar activeIndex="0" />

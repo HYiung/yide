@@ -30,9 +30,9 @@ App({
 
           // 店主 → 跳转收银台，顾客 → 跳转商城
           if (isAdmin) {
-            wx.switchTab({ url: '/pages/index/index' });
+            wx.reLaunch({ url: '/pages/index/index' });
           } else {
-            wx.switchTab({ url: '/pages/mall/mall' });
+            wx.reLaunch({ url: '/pages/mall/mall' });
           }
         }).catch((err) => {
           console.error('角色检查请求失败', err);

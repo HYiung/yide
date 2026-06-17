@@ -399,7 +399,7 @@ page {
 /* ========== 底部结算栏 ========== */
 .cart-bar {
   position: fixed;
-  bottom: 0;
+  bottom: 100rpx;
   left: 0;
   right: 0;
   height: 100rpx;

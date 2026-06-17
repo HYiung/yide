@@ -1,0 +1,12 @@
+<view class="tab-bar {{showSafeArea ? 'safe-area' : ''}}">
+  <view
+    class="tab-item {{index === activeIndex ? 'active' : ''}}"
+    wx:for="{{tabs}}"
+    wx:key="index"
+    data-path="{{item.path}}"
+    bindtap="onTabTap"
+  >
+    <text class="tab-icon">{{item.icon}}</text>
+    <text class="tab-label">{{item.label}}</text>
+  </view>
+</view>

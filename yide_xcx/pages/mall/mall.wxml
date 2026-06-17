@@ -54,7 +54,7 @@
     <text>该分类暂无商品</text>
   </view>
 
-  <view style="height: 160rpx;"></view>
+  <view style="height: 100rpx;"></view>
 </scroll-view>
 
 <!-- 🛒 购物车遮罩 -->
@@ -98,3 +98,5 @@
   </view>
   <view class="settle-btn" bindtap="goToOrder">去结算</view>
 </view>
+<!-- 自定义底部导航 -->
+<custom-tab-bar activeIndex="{{tabIndex}}" />

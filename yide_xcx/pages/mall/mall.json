@@ -2,7 +2,9 @@
   "navigationBarTitleText": "一得书苑商城",
   "enablePullDownRefresh": true,
   "backgroundTextStyle": "dark",
-  "usingComponents": {},
+  "usingComponents": {
+    "custom-tab-bar": "/components/custom-tab-bar/index"
+  },
   "renderer": "webview",
   "componentFramework": "glass-easel"
 }
