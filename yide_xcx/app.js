@@ -28,9 +28,11 @@ App({
           wx.setStorageSync('is_admin', isAdmin);
           console.log(`身份确认：${isAdmin ? '店主' : '顾客'}`);
 
-          // 店主启动时默认跳转到收银台，顾客留在当前页
+          // 店主 → 跳转收银台，顾客 → 跳转商城
           if (isAdmin) {
             wx.switchTab({ url: '/pages/index/index' });
+          } else {
+            wx.switchTab({ url: '/pages/mall/mall' });
           }
         }).catch((err) => {
           console.error('角色检查请求失败', err);

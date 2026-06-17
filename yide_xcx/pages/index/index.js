@@ -32,6 +32,12 @@ Page({
   },
 
   onShow: function () {
+    // 顾客请去商城，收银台是店主用的
+    const isAdmin = wx.getStorageSync('is_admin');
+    if (isAdmin === false) {
+      wx.switchTab({ url: '/pages/mall/mall' });
+      return;
+    }
     this.refreshDashboard();
     this.startPolling();
   },

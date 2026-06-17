@@ -16,8 +16,12 @@ Page({
   },
 
   onShow: function () {
-    // skyline 渲染器下 tab 切换后刷新状态
-    console.log('product page onShow');
+    // 顾客请去商城，进货录入是店主用的
+    const isAdmin = wx.getStorageSync('is_admin');
+    if (isAdmin === false) {
+      wx.switchTab({ url: '/pages/mall/mall' });
+      return;
+    }
   },
 
   scanBarcode: function() {
