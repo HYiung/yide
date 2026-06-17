@@ -1,8 +1,8 @@
 {
   "pages": [
-    "pages/mall/mall",
     "pages/index/index",
     "pages/product/product",
+    "pages/mall/mall",
     "pages/order/order"
   ],
   "tabBar": {

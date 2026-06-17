@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/verify_order/', views.verify_order, name='verify_order'),  # 核销状态为 0 (待取货) 的订单
     path('api/health/', views.health_check, name='health_check'),  # 健康检查
     path('api/auto_categorize/', views.auto_categorize_products, name='auto_categorize'),  # 一键自动分类
+    path('api/seed_products/', views.seed_sample_products, name='seed_products'),  # 一键部署示例商品
 ]

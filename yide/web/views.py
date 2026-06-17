@@ -391,6 +391,74 @@ def auto_categorize_products(request):
     return JsonResponse({'status': 'success', 'updated': count})
 
 
+# 推荐样品商品数据（供店主一键部署到云端）
+SEED_PRODUCTS = [
+    # books - 名著书籍
+    ('9787012345671', '新华字典', 25.00, 20, 'books'),
+    ('9787012345672', '小学生作文精选', 18.00, 15, 'books'),
+    ('9787012345673', '英语四六级词汇', 35.00, 10, 'books'),
+    ('9787012345674', '描红字帖', 8.00, 30, 'books'),
+    ('9787012345675', '古诗词名篇', 22.00, 12, 'books'),
+    # pens - 笔类
+    ('6923456700011', '晨光中性笔 0.5mm 黑', 3.00, 100, 'pens'),
+    ('6923456700012', '晨光中性笔 0.5mm 红', 3.00, 50, 'pens'),
+    ('6923456700013', '2B铅笔（含橡皮头）', 2.00, 80, 'pens'),
+    ('6923456700014', '荧光笔 黄', 4.50, 30, 'pens'),
+    ('6923456700015', '马克笔12色套装', 18.00, 15, 'pens'),
+    ('6923456700016', '钢笔（英雄）', 25.00, 10, 'pens'),
+    # erasers - 橡皮擦
+    ('6923456700021', '4B绘图橡皮', 2.50, 40, 'erasers'),
+    ('6923456700022', '美术橡皮擦 可塑', 3.50, 25, 'erasers'),
+    ('6923456700023', '磨砂橡皮擦', 3.00, 30, 'erasers'),
+    # correction - 修正用品
+    ('6923456700031', '修正带 标准款', 3.50, 40, 'correction'),
+    ('6923456700032', '修正带 迷你款', 2.00, 50, 'correction'),
+    ('6923456700033', '修正液', 3.00, 20, 'correction'),
+    ('6923456700034', '胶带 透明宽', 2.00, 30, 'correction'),
+    # others - 其他
+    ('6923456700041', 'A5笔记本 横线', 6.00, 50, 'others'),
+    ('6923456700042', 'A4文件袋', 3.00, 40, 'others'),
+    ('6923456700043', '学生剪刀', 5.00, 20, 'others'),
+    ('6923456700044', '固体胶棒', 2.50, 35, 'others'),
+    ('6923456700045', '尺子 15cm', 2.00, 30, 'others'),
+]
+
+
+@csrf_exempt
+def seed_sample_products(request):
+    """一键部署示例商品数据到云端数据库"""
+    from .models import Product
+    from decimal import Decimal
+
+    added = 0
+    updated = 0
+    for barcode, name, price, stock, category in SEED_PRODUCTS:
+        product, created = Product.objects.get_or_create(
+            barcode=barcode,
+            defaults={
+                'name': name,
+                'price': Decimal(str(price)),
+                'stock': stock,
+                'category': category,
+            }
+        )
+        if created:
+            added += 1
+        elif product.stock < stock:
+            # 如果已有且库存较少，补货到目标库存
+            product.stock = stock
+            product.save(update_fields=['stock'])
+            updated += 1
+
+    return JsonResponse({
+        'status': 'success',
+        'added': added,
+        'updated': updated,
+        'total': len(SEED_PRODUCTS),
+        'msg': f'新增 {added} 个商品，补充 {updated} 个商品库存',
+    })
+
+
 @csrf_exempt
 def submit_order(request):
     if request.method != 'POST':
