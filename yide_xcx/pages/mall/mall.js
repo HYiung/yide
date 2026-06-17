@@ -23,6 +23,9 @@ Page({
   onLoad: function () {
     this.setData({ isAdmin: !!wx.getStorageSync('is_admin') });
     this.quietCheckIdentity();
+    if (this.data.isAdmin) {
+      wx.setStorageSync('cart', []);
+    }
     this.fetchData(this.data.activeCat);
   },
 

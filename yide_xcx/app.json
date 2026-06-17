@@ -22,6 +22,12 @@
         "text": "进货录入",
         "iconPath": "images/入库未选中.png",
         "selectedIconPath": "images/入库选中.png"
+      },
+      {
+        "pagePath": "pages/mall/mall",
+        "text": "商城",
+        "iconPath": "images/商城未选中.png",
+        "selectedIconPath": "images/商城选中.png"
       }
     ]
   },
