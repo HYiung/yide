@@ -79,13 +79,13 @@
 
   <!-- 底栏：合计 + 操作按钮 -->
   <view class="footer" wx:if="{{cart.length > 0}}">
-    <view class="footer-top">
-      <text class="total-label">应收合计：</text>
+    <view class="footer-total">
+      <text class="total-label">应收合计</text>
       <text class="total-amount">￥{{total}}</text>
     </view>
     <view class="footer-actions">
-      <button class="btn-clear" bindtap="onResetCart">🗑️ 清空</button>
-      <button class="btn-checkout" bindtap="onFinish">✅ 收款完成</button>
+      <button class="btn-clear" bindtap="onResetCart">清空</button>
+      <button class="btn-checkout" bindtap="onFinish">收款完成</button>
     </view>
   </view>
 </view>

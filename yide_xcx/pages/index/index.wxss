@@ -8,6 +8,7 @@ page {
 .container {
   display: flex;
   flex-direction: column;
+  padding-bottom: 140rpx;
 }
 
 /* 顶部绿色卡片 */
@@ -252,59 +253,83 @@ page {
   font-size: 32rpx;
 }
 
-/* --- 底部结算区 --- */
+/* --- 底部结算区（固定底栏） --- */
 .footer {
-  margin-top: 30rpx;
-  background-color: #fff;
-  padding: 24rpx 30rpx;
-  border-radius: 20rpx;
-  border: 4rpx solid #07c160;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  padding: 20rpx 30rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  border-top: 2rpx solid #f0f0f0;
+  box-shadow: 0 -6rpx 20rpx rgba(0, 0, 0, 0.08);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.footer-top {
+.footer-total {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 20rpx;
+  gap: 12rpx;
+  flex-shrink: 0;
 }
 
 .total-label {
-  font-size: 36rpx;
-  font-weight: bold;
+  font-size: 28rpx;
+  color: #666;
+  font-weight: 500;
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .total-amount {
-  font-size: 56rpx;
+  font-size: 48rpx;
   font-weight: 900;
-  color: #07c160;
+  color: #e64340;
 }
 
 .footer-actions {
   display: flex;
   gap: 20rpx;
+  flex-shrink: 0;
 }
 
 .btn-clear {
-  flex: 1;
-  background-color: #f5f5f5 !important;
+  background: #f5f5f5 !important;
   color: #666 !important;
-  font-size: 34rpx !important;
-  height: 88rpx !important;
-  line-height: 88rpx !important;
-  border-radius: 44rpx !important;
-  font-weight: bold;
-  border: 1rpx solid #ddd !important;
+  font-size: 30rpx !important;
+  height: 80rpx !important;
+  line-height: 80rpx !important;
+  padding: 0 30rpx !important;
+  border-radius: 40rpx !important;
+  font-weight: 500 !important;
+  border: none !important;
 }
 
 .btn-checkout {
-  flex: 2;
+  background: linear-gradient(135deg, #07c160, #06ad54) !important;
+  color: white !important;
+  font-size: 30rpx !important;
+  height: 80rpx !important;
+  line-height: 80rpx !important;
+  padding: 0 40rpx !important;
+  border-radius: 40rpx !important;
+  font-weight: bold !important;
+  border: none !important;
+  box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.3) !important;
+}
+
+/* 老版清空按钮兼容（不再使用，保留以防引用） */
+.clear-btn {
+  margin-top: 30rpx;
   background-color: #07c160 !important;
   color: white !important;
-  font-size: 34rpx !important;
-  height: 88rpx !important;
-  line-height: 88rpx !important;
-  border-radius: 44rpx !important;
+  font-size: 38rpx !important;
+  height: 100rpx !important;
+  line-height: 100rpx !important;
+  border-radius: 50rpx !important;
   font-weight: bold;
 }
 
