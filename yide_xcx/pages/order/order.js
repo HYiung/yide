@@ -9,9 +9,15 @@ Page({
   },
 
   onLoad: function () {
-    // 获取从商城页存入缓存的数据
     const cart = wx.getStorageSync('cart') || [];
     const totalPrice = wx.getStorageSync('totalPrice') || '0.00';
+
+    if (!cart.length) {
+      wx.showToast({ title: '购物车为空', icon: 'none' });
+      setTimeout(() => wx.navigateBack(), 1000);
+      return;
+    }
+
     this.setData({ cart, totalPrice });
   },
 
@@ -33,7 +39,6 @@ Page({
     }
 
     this.setData({ submitting: true });
-    wx.showLoading({ title: '提交中...' });
 
     api.request({
       url: '/api/submit_order/',
@@ -44,18 +49,17 @@ Page({
         total: totalPrice
       }
     }).then((data) => {
-      wx.hideLoading();
       this.setData({ submitting: false });
       if (data.status === 'success') {
         wx.showModal({
-          title: '下单成功',
-          content: `订单号：${data.order_sn || ''}\n请凭姓名到柜台核对并付款`,
+          title: '🎉 下单成功',
+          content: `订单号：${data.order_sn || ''}\n请凭姓名到柜台核对并付款取货`,
+          confirmText: '好的',
+          confirmColor: '#07c160',
           showCancel: false,
           success: () => {
-            // 提交成功后，彻底清理购物车缓存
             wx.removeStorageSync('cart');
             wx.removeStorageSync('totalPrice');
-            // 跳转回商城或首页
             wx.reLaunch({ url: '/pages/mall/mall' });
           }
         });
@@ -63,7 +67,6 @@ Page({
         wx.showToast({ title: data.msg || '提交失败', icon: 'none' });
       }
     }).catch((err) => {
-      wx.hideLoading();
       this.setData({ submitting: false });
       console.error('提交订单失败', err);
       wx.showToast({ title: '网络异常', icon: 'none' });

@@ -303,7 +303,7 @@ def quick_add_product(request):
         return JsonResponse({'status': 'fail', 'msg': '价格不能为负数'})
 
     # 校验分类有效性
-    valid_categories = ['books', 'pens', 'erasers', 'others']
+    valid_categories = ['books', 'pens', 'erasers', 'correction', 'others']
     if category not in valid_categories:
         category = 'others'
 
@@ -336,6 +336,7 @@ def quick_add_product(request):
 
 def get_mall_products(request):
     cat = request.GET.get('category', 'all')
+    search = request.GET.get('search', '').strip()
 
     # 基础查询：必须有库存
     query = Product.objects.filter(stock__gt=0)
@@ -344,7 +345,13 @@ def get_mall_products(request):
     if cat != 'all':
         query = query.filter(category=cat)
 
-    products = query.values('id', 'name', 'price', 'category', 'stock')
+    # 名称搜索
+    if search:
+        query = query.filter(name__icontains=search)
+
+    products = query.values('id', 'name', 'price', 'category', 'stock', 'create_time')
+    # 按录入时间倒序（新品在前）
+    products = products.order_by('-create_time')
 
     return JsonResponse({
         'status': 'success',
@@ -356,7 +363,8 @@ def get_mall_products(request):
 CATEGORY_KEYWORDS = {
     'books': ['书', '本', '名著', '阅读', '作文', '语文', '英语', '数学', '教材', '练习册', '字典', '词典', '字帖', '绘本'],
     'pens': ['笔', '铅笔', '钢笔', '圆珠笔', '签字笔', '马克笔', '荧光笔', '水彩笔', '蜡笔', '中性笔', '彩笔', '画笔', '白板笔'],
-    'erasers': ['橡皮', '修正', '涂改', '改正', '胶带', '修正带', '修正液', '擦', '胶擦'],
+    'erasers': ['橡皮', '擦', '胶擦'],
+    'correction': ['修正', '涂改', '改正', '胶带', '修正带', '修正液', '改正带'],
 }
 
 @csrf_exempt

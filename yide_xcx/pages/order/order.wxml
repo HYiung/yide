@@ -1,23 +1,48 @@
 <view class="container">
-  <view class="header">确认订单</view>
+  <!-- 头部 -->
+  <view class="order-header">
+    <text class="order-header-icon">📋</text>
+    <text class="order-header-title">确认订单</text>
+    <text class="order-header-sub">请核对商品信息后提交</text>
+  </view>
 
-  <view class="item-list">
-    <view class="item-title">商品清单</view>
+  <!-- 商品清单卡片 -->
+  <view class="card">
+    <view class="card-title">
+      <text>🛒 商品清单</text>
+      <text class="card-count">共 {{cart.length}} 件</text>
+    </view>
     <view class="product" wx:for="{{cart}}" wx:key="id">
-      <text class="name">{{item.name}}</text>
-      <text class="num">x{{item.num}}</text>
-      <text class="price">￥{{item.price}}</text>
+      <view class="product-left">
+        <text class="product-name">{{item.name}}</text>
+        <text class="product-unit">￥{{item.price}}/件</text>
+      </view>
+      <view class="product-right">
+        <text class="product-num">×{{item.num}}</text>
+        <text class="product-total">￥{{(item.num * item.price).toFixed(2)}}</text>
+      </view>
     </view>
     <view class="total-line">
-      合计：<text class="total-price">￥{{totalPrice}}</text>
+      <text>合计</text>
+      <text class="total-price">￥{{totalPrice}}</text>
     </view>
   </view>
 
-  <view class="input-section">
-    <view class="label">取货人姓名：</view>
+  <!-- 个人信息卡片 -->
+  <view class="card">
+    <view class="card-title">👤 取货信息</view>
     <input class="name-input" placeholder="请输入您的姓名" bindinput="onNameInput" value="{{customerName}}" />
-    <view class="tips">* 请务必填写真实姓名，方便柜台取货</view>
+    <view class="tips">* 请填写真实姓名，到柜台报姓名取货付款</view>
   </view>
 
-  <button class="submit-btn" type="primary" bindtap="submitOrder" loading="{{submitting}}" disabled="{{submitting}}">提交订单</button>
+  <!-- 提交按钮 -->
+  <button class="submit-btn" bindtap="submitOrder" loading="{{submitting}}" disabled="{{submitting}}">
+    <text wx:if="{{!submitting}}">✅ 提交订单</text>
+    <text wx:else>提交中...</text>
+  </button>
+
+  <!-- 底部说明 -->
+  <view class="footer-note">
+    <text>提交后请到柜台出示姓名核对取货 🏪</text>
+  </view>
 </view>

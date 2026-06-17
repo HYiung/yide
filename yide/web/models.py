@@ -7,7 +7,8 @@ class Product(models.Model):
     CATEGORY_CHOICES = [
         ('books', '名著书籍'),
         ('pens', '各类笔'),
-        ('erasers', '橡皮修正'),
+        ('erasers', '橡皮擦'),
+        ('correction', '修正用品'),
         ('others', '其他文具'),
     ]
     # barcode 是条码，设为唯一索引，方便扫码枪秒查

@@ -7,14 +7,16 @@ Page({
     products: [],
     loading: true,
     activeCat: 'all',
+    searchKey: '',
     categories: [
       { id: 'all', name: '全部' },
-      { id: 'books', name: '名著' },
-      { id: 'pens', name: '笔类' },
-      { id: 'erasers', name: '橡皮' },
-      { id: 'others', name: '其他' }
+      { id: 'books', name: '📚 名著' },
+      { id: 'pens', name: '🖊️ 笔类' },
+      { id: 'erasers', name: '🧽 橡皮' },
+      { id: 'correction', name: '📦 修正' },
+      { id: 'others', name: '📎 其他' }
     ],
-    cart: [],         // 购物车列表
+    cart: [],
     totalPrice: '0.00',
     totalCount: 0,
     isAdmin: false
@@ -26,26 +28,35 @@ Page({
     if (this.data.isAdmin) {
       wx.setStorageSync('cart', []);
     }
-    this.fetchData(this.data.activeCat);
+    this.fetchData(this.data.activeCat, this.data.searchKey);
   },
 
   onShow: function() {
-    // 每次页面显示时重新加载数据（tab 切换、navigateBack 等场景）
     this.setData({ isAdmin: !!wx.getStorageSync('is_admin') });
-    this.fetchData(this.data.activeCat);
+    this.fetchData(this.data.activeCat, this.data.searchKey);
     const cart = wx.getStorageSync('cart') || [];
     this.calculateTotal(cart);
   },
 
-  fetchData: function (category) {
+  // ---------- 数据处理 ----------
+
+  fetchData: function (category, search) {
     this.setData({ loading: true });
     api.request({
       url: '/api/mall_products/',
-      data: { category: category }
+      data: {
+        category: category,
+        search: search || ''
+      }
     }).then((data) => {
       if (data && data.status === 'success') {
+        const products = (data.list || []).map(p => ({
+          ...p,
+          iconUrl: this.getCategoryIcon(p.category),
+          _createTime: p.create_time
+        }));
         this.setData({
-          products: data.list || [],
+          products: products,
           loading: false
         });
         this.syncCartWithProducts(data.list || []);
@@ -60,13 +71,50 @@ Page({
     });
   },
 
+  // 判断是否为新品（7天内录入）
+  isNewProduct: function(product) {
+    if (!product.create_time) return false;
+    const created = new Date(product.create_time);
+    const now = new Date();
+    const diffDays = (now - created) / (1000 * 60 * 60 * 24);
+    return diffDays <= 7;
+  },
+
+  // ---------- 搜索 & 分类 ----------
+
+  onSearchInput: function(e) {
+    this.setData({ searchKey: e.detail.value });
+  },
+
+  doSearch: function() {
+    this.setData({ activeCat: 'all' });
+    this.fetchData('all', this.data.searchKey);
+  },
+
+  clearSearch: function() {
+    this.setData({ searchKey: '' });
+    this.fetchData(this.data.activeCat, '');
+  },
+
   switchCat: function (e) {
     const catId = e.currentTarget.dataset.id;
     this.setData({ activeCat: catId, showCartDetail: false });
-    this.fetchData(catId);
+
+    // 如果有搜索关键词，搜全部再按分类过滤
+    if (this.data.searchKey) {
+      this.fetchData('all', this.data.searchKey);
+    } else {
+      this.fetchData(catId, '');
+    }
   },
 
-  // 切换清单弹窗显示/隐藏
+  // 触底加载更多（预留，目前一次加载全部）
+  onLoadMore: function() {
+    // 分页功能可在此扩展
+  },
+
+  // ---------- 购物车操作 ----------
+
   toggleCartDetail: function() {
     if (this.data.totalCount > 0) {
       this.setData({ showCartDetail: !this.data.showCartDetail });
@@ -90,17 +138,16 @@ Page({
   },
 
   getCategoryIcon: function(category) {
-    // 各类文具对应不同图标（Flaticon CDN，与项目原有用法一致）
     const icons = {
       'books': 'https://cdn-icons-png.flaticon.com/512/2232/2232688.png',
       'pens': 'https://cdn-icons-png.flaticon.com/512/3361/3361993.png',
       'erasers': 'https://cdn-icons-png.flaticon.com/512/4781/4781902.png',
+      'correction': 'https://cdn-icons-png.flaticon.com/512/5603/5603981.png',
       'others': 'https://cdn-icons-png.flaticon.com/512/2462/2462630.png'
     };
     return icons[category] || 'https://cdn-icons-png.flaticon.com/512/2541/2541991.png';
   },
 
-  // 加入购物车 (主列表按钮)
   addToCart: function (e) {
     if (this.data.isAdmin) {
       wx.showToast({ title: '店主仅可浏览，顾客才能购买', icon: 'none', duration: 1500 });
@@ -128,10 +175,9 @@ Page({
     }
 
     this.calculateTotal(cart);
-    wx.showToast({ title: '已加入', icon: 'success', duration: 800 });
+    wx.showToast({ title: '已加入 🛒', icon: 'success', duration: 600 });
   },
 
-  // 清单内加数量
   plusItem: function(e) {
     if (this.data.isAdmin) return;
     const id = e.currentTarget.dataset.id;
@@ -148,7 +194,6 @@ Page({
     }
   },
 
-  // 清单内减数量
   minusItem: function(e) {
     if (this.data.isAdmin) return;
     const id = e.currentTarget.dataset.id;
@@ -158,17 +203,15 @@ Page({
       if (cart[index].num > 1) {
         cart[index].num -= 1;
       } else {
-        cart.splice(index, 1); // 减到0则移除
+        cart.splice(index, 1);
       }
       this.calculateTotal(cart);
-      // 如果减完了，自动收起清单
       if (cart.length === 0) {
         this.setData({ showCartDetail: false });
       }
     }
   },
 
-  // 清空购物车
   clearCart: function() {
     if (this.data.isAdmin) return;
     wx.showModal({
