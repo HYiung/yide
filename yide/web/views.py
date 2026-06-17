@@ -114,7 +114,8 @@ def get_cart_status(request):
             'name': i.product.name,
             'price': str(i.product.price),
             'quantity': i.quantity,
-            'remaining_stock': i.product.stock
+            'remaining_stock': i.product.stock,
+            'category': i.product.category
         })
         total += i.product.price * i.quantity
     return JsonResponse({'items': data, 'total': str(total)})

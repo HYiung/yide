@@ -1,35 +1,48 @@
 <view class="container">
+  <!-- 顶部绿色卡片：营收 + 搜索核销 -->
   <view class="today-card">
     <view class="stats-row">
       <view class="today-item">
-        <text class="today-label">营收: ￥{{total_amount}}</text>
+        <text class="today-label">今日营收</text>
+        <text class="today-amount">￥{{total_amount}}</text>
       </view>
-      <view class="today-item" style="justify-content: flex-end;">
-        <text class="today-label">件数: {{today_count}}</text>
+      <view class="today-item right">
+        <text class="today-badge">笔数 {{today_count}}</text>
+        <text wx:if="{{lowStockCount > 0}}" class="badge-warning">{{lowStockCount}} 件低库存</text>
+      </view>
+    </view>
+    <view class="search-box">
+      <input placeholder="输入姓名或单号后4位核销" bindinput="onSearchInput" value="{{searchKey}}"
+        placeholder-style="color:#ccc;" />
+      <button bindtap="searchOrder">搜索</button>
+    </view>
+    <view class="search-result" wx:if="{{pendingOrder}}">
+      <view class="order-brief">
+        <text>👤 {{pendingOrder.customer_name}}</text>
+        <text>💰 ￥{{pendingOrder.total_price}}</text>
+      </view>
+      <view class="order-items" wx:if="{{pendingOrder.items.length > 0}}">
+        <text wx:for="{{pendingOrder.items}}" wx:key="product_id">{{item.name}} × {{item.count}} </text>
+      </view>
+      <button class="verify-btn" type="warn" bindtap="verifyOrder" data-id="{{pendingOrder.id}}">确认取货</button>
+    </view>
+  </view>
+
+  <!-- 面板区域：待取货 / 低库存 标签切换 -->
+  <view class="dashboard-section" wx:if="{{pendingOrders.length > 0 || lowStockProducts.length > 0}}">
+    <view class="tab-header">
+      <view class="tab-item {{activeTab == 'orders' ? 'active' : ''}}" bindtap="switchTab" data-tab="orders">
+        <text>待取货</text>
+        <text wx:if="{{lastOrderCount > 0}}" class="tab-count">{{lastOrderCount}}</text>
+      </view>
+      <view class="tab-item {{activeTab == 'lowstock' ? 'active' : ''}}" bindtap="switchTab" data-tab="lowstock">
+        <text>低库存</text>
+        <text wx:if="{{lowStockCount > 0}}" class="tab-count warn">{{lowStockCount}}</text>
       </view>
     </view>
 
-    <view class="order-check-section">
-      <view class="search-box">
-        <input placeholder="输入姓名或单号后4位核销" bindinput="onSearchInput" value="{{searchKey}}"
-          placeholder-style="color:#ccc;" />
-        <button bindtap="searchOrder">搜索</button>
-      </view>
-
-      <view class="search-result" wx:if="{{pendingOrder}}">
-        <view class="order-brief">
-          <text>👤 {{pendingOrder.customer_name}}</text>
-          <text>💰 ￥{{pendingOrder.total_price}}</text>
-        </view>
-        <view class="order-items" wx:if="{{pendingOrder.items.length > 0}}">
-          <text wx:for="{{pendingOrder.items}}" wx:key="product_id">{{item.name}} × {{item.count}} </text>
-        </view>
-        <button class="verify-btn" type="warn" bindtap="verifyOrder" data-id="{{pendingOrder.id}}">确认取货</button>
-      </view>
-    </view>
-
-    <view class="dashboard-panel" wx:if="{{pendingOrders.length > 0}}">
-      <view class="panel-title">待取货订单（{{lastOrderCount}}）</view>
+    <!-- 待取货内容 -->
+    <view class="tab-content" wx:if="{{activeTab == 'orders' && pendingOrders.length > 0}}">
       <view class="pending-row" wx:for="{{pendingOrders}}" wx:key="id">
         <view class="pending-main">
           <text class="pending-name">{{item.customer_name}}</text>
@@ -39,26 +52,37 @@
       </view>
     </view>
 
-    <view class="dashboard-panel low-stock-panel" wx:if="{{lowStockProducts.length > 0}}">
-      <view class="panel-title">低库存提醒（{{lowStockCount}}）</view>
+    <!-- 低库存内容 -->
+    <view class="tab-content" wx:if="{{activeTab == 'lowstock' && lowStockProducts.length > 0}}">
       <view class="low-stock-row" wx:for="{{lowStockProducts}}" wx:key="id">
-        <text>{{item.name}}</text>
-        <text class="low-stock-num">剩 {{item.stock}}</text>
+        <view class="low-stock-info">
+          <text class="ls-emoji">{{item.emoji}}</text>
+          <text class="ls-name">{{item.name}}</text>
+        </view>
+        <view class="ls-stock-tag">剩 {{item.stock}}</view>
       </view>
     </view>
   </view>
 
-  <view class="header">一得书苑 · 实时清单</view>
+  <!-- 实时清单标题 -->
+  <view class="section-header" wx:if="{{cart.length > 0}}">
+    <text class="section-title">实时清单</text>
+    <text class="section-count">{{cart.length}} 件</text>
+  </view>
 
   <!-- 购物车列表 -->
   <view class="cart-card">
     <view wx:if="{{cart.length > 0}}">
       <view class="item-row" wx:for="{{cart}}" wx:key="id">
+        <text class="item-emoji">{{item.emoji}}</text>
         <view class="item-main">
-          <text class="item-name">{{item.name}}</text>
-          <text class="stock-warning" wx:if="{{item.remaining_stock < 5}}">
-            (库存: {{item.remaining_stock}})
-          </text>
+          <view class="item-name-row">
+            <text class="item-name">{{item.name}}</text>
+            <text class="stock-warning" wx:if="{{item.remaining_stock < 5}}">
+              仅剩{{item.remaining_stock}}
+            </text>
+          </view>
+          <text class="item-unit-price">￥{{item.price}}/件</text>
         </view>
         <view class="item-actions">
           <view class="qty-ctrl">
@@ -66,22 +90,26 @@
             <text class="qty-num">{{item.quantity}}</text>
             <view class="qty-btn" bindtap="onIncrement" data-id="{{item.id}}">+</view>
           </view>
-          <text class="item-price">￥{{item.price}}</text>
+          <text class="item-subtotal">￥{{item.subtotal}}</text>
           <view class="del-btn" bindtap="onRemoveItem" data-id="{{item.id}}">✕</view>
         </view>
       </view>
     </view>
-    <view wx:else class="empty-tips" style="padding:100rpx 0;text-align:center;">
-      <text>欢迎使用一得书苑收银系统</text>
-      <text style="display:block;margin-top:20rpx;color:#999;font-size:26rpx;">扫码添加商品或选择商品后自动计入</text>
+    <view wx:else class="empty-state">
+      <view class="empty-icon">🛍️</view>
+      <text class="empty-text">扫码或搜索添加商品开始收银</text>
+      <text class="empty-hint">切换至「进货录入」可扫码入库新商品</text>
     </view>
   </view>
 
-  <!-- 底栏：合计 + 操作按钮 -->
+  <!-- 底栏 -->
   <view class="footer" wx:if="{{cart.length > 0}}">
     <view class="footer-total">
       <text class="total-label">应收合计</text>
-      <text class="total-amount">￥{{total}}</text>
+      <view class="total-amount-row">
+        <text class="total-currency">￥</text>
+        <text class="total-amount">{{total}}</text>
+      </view>
     </view>
     <view class="footer-actions">
       <button class="btn-clear" bindtap="onResetCart">清空</button>

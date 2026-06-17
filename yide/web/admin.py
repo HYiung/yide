@@ -18,46 +18,84 @@ class OrderItemInline(admin.TabularInline):
 # 2. 商城订单管理
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    # 重点：把 order_sn 放在第一位，方便长辈核对编号
-    list_display = ('order_sn_link', 'customer_name', 'total_price', 'status', 'status_colored', 'create_time')
+    # 订单号作为可点击链接（进详情页），状态可直接下拉修改
+    list_display = ('order_sn', 'customer_name', 'total_price', 'status', 'create_time')
 
-    # 只有 status 可以在列表页直接勾选修改
+    # 状态列在列表页直接下拉修改（0=待取货，1=已完成）
     list_editable = ('status',)
 
-    # 侧边栏可以按状态和时间过滤
+    # 侧边栏按状态和时间过滤
     list_filter = ('status', 'create_time')
 
-    # 搜索框支持按姓名和订单号搜索
+    # 搜索姓名或订单号
     search_fields = ('customer_name', 'order_sn')
 
     # 日期快速导航
     date_hierarchy = 'create_time'
 
-    # 订单编号是自动生成的，设为只读，防止后台误改
+    # 只读字段（订单号自动生成，时间自动记录）
     readonly_fields = ('order_sn', 'create_time')
+
+    # 最新订单排最前面
+    ordering = ('-create_time',)
 
     # 列表页每页显示条数
     list_per_page = 20
 
+    # 列表页操作按钮
+    actions = ['mark_as_completed', 'mark_as_pending']
+
     inlines = [OrderItemInline]
 
-    # ---------- 自定义显示 ----------
+    # ---------- 批量操作 ----------
 
-    def order_sn_link(self, obj):
-        """订单号可点击跳转详情"""
-        from django.urls import reverse
-        url = reverse('admin:web_order_change', args=[obj.pk])
-        return mark_safe(f'<a href="{url}" style="font-family:monospace;">{obj.order_sn}</a>')
-    order_sn_link.short_description = "订单编号"
-    order_sn_link.admin_order_field = 'order_sn'
+    def mark_as_completed(self, request, queryset):
+        """批量标记为已完成"""
+        from django.contrib import messages
+        success = 0
+        errors = []
+        for order in queryset:
+            if order.status == 1:
+                continue
+            try:
+                with transaction.atomic():
+                    for item in order.items.select_related('product').all():
+                        product = Product.objects.select_for_update().get(pk=item.product_id)
+                        if product.stock < item.count:
+                            errors.append(f'{order.order_sn}: {product.name} 库存不足')
+                            raise ValidationError('stop')
+                        product.stock -= item.count
+                        product.save(update_fields=['stock'])
+                        SaleHistory.objects.create(
+                            product_name=product.name,
+                            price=product.price,
+                            quantity=item.count
+                        )
+                    Order.objects.filter(pk=order.pk).update(status=1)
+                    success += 1
+            except ValidationError:
+                break
+        if success:
+            self.message_user(request, f'✅ {success} 个订单已完成并扣库存', messages.SUCCESS)
+        if errors:
+            for e in errors:
+                self.message_user(request, f'❌ {e}', messages.ERROR)
+    mark_as_completed.short_description = '✅ 标记为已完成（扣库存）'
 
-    def status_colored(self, obj):
-        """状态显示为彩色标签"""
-        if obj.status == 1:
-            return mark_safe('<span style="color:#07c160;font-weight:bold;">✅ 已完成</span>')
-        return mark_safe('<span style="color:#faad14;font-weight:bold;">⏳ 待取货</span>')
-    status_colored.short_description = "状态"
-    status_colored.admin_order_field = 'status'
+    def mark_as_pending(self, request, queryset):
+        """批量恢复为待取货"""
+        from django.contrib import messages
+        count = queryset.exclude(status=0).update(status=0)
+        self.message_user(request, f'已将 {count} 个订单恢复为待取货', messages.WARNING)
+    mark_as_pending.short_description = '⏳ 恢复为待取货'
+
+    # ---------- 详情页优化 ----------
+
+    fieldsets = (
+        ('订单信息', {
+            'fields': ('order_sn', 'customer_name', 'total_price', 'status', 'create_time')
+        }),
+    )
 
     def save_model(self, request, obj, form, change):
         # 如果是修改操作，且状态被改成了“已完成(1)”

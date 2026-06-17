@@ -1,18 +1,30 @@
 // pages/index/index.js
 const api = require('../../utils/api.js');
 
+// 分类对应的 emoji
+const CATEGORY_EMOJI = {
+  books: '📚',
+  pens: '🖊️',
+  papers: '📓',
+  stationery: '📐',
+  correction: '📦',
+  others: '📎'
+};
+const DEFAULT_EMOJI = '📎';
+
 Page({
   data: {
     cart: [],
     total_amount: '0.00',
     today_count: 0,
     total: '0.00',
-    lastOrderCount: 0, // 用于记录上次订单数，防止重复弹窗
+    lastOrderCount: 0,
     searchKey: '',
     pendingOrder: null,
     pendingOrders: [],
     lowStockProducts: [],
-    lowStockCount: 0
+    lowStockCount: 0,
+    activeTab: 'orders'   // 'orders' | 'lowstock'
   },
 
   onLoad: function () {
@@ -28,7 +40,6 @@ Page({
     this.stopPolling();
   },
 
-  // 退出页面清理
   onUnload: function () {
     this.stopPolling();
   },
@@ -55,12 +66,28 @@ Page({
     this.fetchLowStockProducts();
   },
 
-  // 获取扫码收银台的数据
+  // 标签切换
+  switchTab: function (e) {
+    const tab = e.currentTarget.dataset.tab;
+    this.setData({ activeTab: tab });
+  },
+
+  // 分类 → emoji
+  getEmoji: function (category) {
+    return CATEGORY_EMOJI[category] || DEFAULT_EMOJI;
+  },
+
+  // 获取购物车
   fetchCart: function () {
     api.request({ url: '/get_cart_status/' })
       .then((data) => {
+        const items = (data.items || []).map(item => ({
+          ...item,
+          emoji: this.getEmoji(item.category),
+          subtotal: (parseFloat(item.price) * item.quantity).toFixed(2)
+        }));
         this.setData({
-          cart: data.items || [],
+          cart: items,
           total: data.total || '0.00'
         });
       })
@@ -132,7 +159,7 @@ Page({
     });
   },
 
-  // 检查商城新订单（待取货订单）
+  // 检查商城新订单
   checkMallOrders: function () {
     api.request({ url: '/api/get_new_order_count/' })
       .then((data) => {
@@ -156,8 +183,7 @@ Page({
       });
   },
 
-
-  // 获取待取货订单列表，方便店主不用逐个搜索也能看到待办
+  // 获取待取货订单列表
   fetchPendingOrders: function () {
     api.request({
       url: '/api/pending_orders/',
@@ -171,15 +197,19 @@ Page({
     });
   },
 
-  // 获取低库存商品列表，提醒及时补货
+  // 获取低库存商品
   fetchLowStockProducts: function () {
     api.request({
       url: '/api/low_stock_products/',
       data: { threshold: 5, limit: 5 }
     }).then((data) => {
       if (data.status === 'success') {
+        const list = (data.list || []).map(item => ({
+          ...item,
+          emoji: this.getEmoji(item.category)
+        }));
         this.setData({
-          lowStockProducts: data.list || [],
+          lowStockProducts: list,
           lowStockCount: Number(data.total_count || 0)
         });
       }
@@ -232,14 +262,13 @@ Page({
     });
   },
 
-  // 减少数量（减到0则删除）
+  // 减少数量
   onDecrement: function (e) {
     const productId = e.currentTarget.dataset.id;
     const item = this.data.cart.find(v => v.id === productId);
     if (!item) return;
 
     if (item.quantity <= 1) {
-      // 直接调用删除
       this.removeSingleItem(productId);
       return;
     }
@@ -327,7 +356,7 @@ Page({
     });
   },
 
-  // 点击”收款完成”按钮（扫码结账）
+  // 收款完成
   onFinish: function () {
     if (this.data.cart.length === 0) {
       wx.showToast({ title: '当前账单为空', icon: 'none' });
