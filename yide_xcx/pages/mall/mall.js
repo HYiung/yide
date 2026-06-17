@@ -53,7 +53,7 @@ Page({
       if (data && data.status === 'success') {
         const products = (data.list || []).map(p => ({
           ...p,
-          iconEmoji: this.getCategoryIcon(p.category),
+          productEmoji: this.getProductEmoji(p.name),
           categoryColor: this.getCategoryColor(p.category),
           _createTime: p.create_time
         }));
@@ -135,22 +135,76 @@ Page({
       category: product.category,
       stock: this.getProductStock(product),
       num: num,
-      iconEmoji: this.getCategoryIcon(product.category),
+      productEmoji: this.getProductEmoji(product.name),
       categoryColor: this.getCategoryColor(product.category)
     };
   },
 
-  getCategoryIcon: function(category) {
-    // 使用 emoji 作为商品图标，100% 可靠永不失效
-    const icons = {
-      'books': '📖',
-      'pens': '✏️',
-      'papers': '📓',
-      'stationery': '📐',
-      'correction': '📦',
-      'others': '📎'
-    };
-    return icons[category] || '📦';
+  getProductEmoji: function(productName) {
+    // 每个商品分配独立 emoji，按名称关键词匹配，同类不同商品也一眼可辨
+    const emojiMap = [
+      // ===== 📚 名著书籍 =====
+      ['字典', '📕'], ['词典', '📘'], ['成语', '📘'],
+      ['作文', '📗'],
+      ['字帖', '🖌️'],
+      ['古诗词', '📜'], ['唐诗', '📜'], ['诗词', '📜'],
+      ['绘本', '🎨'],
+      ['阅读', '📖'],
+
+      // ===== 🖊️ 书写工具 =====
+      ['中性笔', '🖊️'], ['圆珠笔', '🖊️'], ['签字笔', '🖊️'],
+      ['铅笔', '✏️'], ['自动铅笔', '✏️'],
+      ['钢笔', '🖋️'],
+      ['马克笔', '🖍️'],
+      ['荧光笔', '🖍️'], ['荧光', '🖍️'],
+      ['水彩笔', '🎨'],
+      ['白板笔', '🖍️'], ['记号笔', '🖍️'],
+      ['笔芯', '✒️'], ['替芯', '✒️'],
+
+      // ===== 📓 本册纸品 =====
+      ['笔记本', '📓'],
+      ['作业本', '📔'], ['练习本', '📔'], ['英语本', '📔'],
+      ['方格本', '📐'],
+      ['便利贴', '🏷️'], ['便签', '🏷️'],
+      ['文件袋', '📂'],
+      ['档案袋', '📁'],
+      ['复印纸', '📄'], ['打印纸', '📄'], ['A4纸', '📄'],
+      ['稿纸', '📝'],
+      ['线圈本', '📓'],
+
+      // ===== 📐 学生文具 =====
+      ['橡皮', '🧽'],
+      ['尺子', '📏'], ['直尺', '📏'], ['三角尺', '📐'],
+      ['圆规', '📐'],
+      ['剪刀', '✂️'],
+      ['订书机', '🔧'],
+      ['订书钉', '📌'], ['订书针', '📌'],
+      ['回形针', '📎'], ['长尾夹', '📎'],
+      ['卷笔刀', '🌀'], ['削笔', '🌀'],
+      ['美工刀', '🔪'],
+      ['垫板', '🖼️'],
+      ['笔袋', '👝'], ['文具盒', '🧰'],
+      ['书包', '🎒'],
+      ['打孔', '🔴'],
+
+      // ===== 📦 修正粘合 =====
+      ['修正带', '📦'],
+      ['修正液', '🧴'], ['涂改液', '🧴'],
+      ['改正带', '📦'],
+      ['固体胶', '🧴'], ['胶棒', '🧴'],
+      ['胶水', '🧴'],
+      ['胶带', '📯'],
+      ['双面胶', '📯'],
+
+      // ===== 📎 其他 =====
+      ['计算器', '🔢'],
+      ['台历', '📅'],
+    ];
+    for (const [kw, emoji] of emojiMap) {
+      if (productName.indexOf(kw) !== -1) return emoji;
+    }
+    // 兜底：按分类给默认 emoji
+    return '📦';
   },
 
   getCategoryColor: function(category) {

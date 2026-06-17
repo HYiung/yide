@@ -27,7 +27,7 @@
     <view class="product-card" wx:for="{{products}}" wx:key="id">
       <!-- 商品图片 -->
       <view class="card-img-wrap" style="background:{{item.categoryColor}};">
-        <text class="card-emoji">{{item.iconEmoji}}</text>
+        <text class="card-emoji">{{item.productEmoji}}</text>
         <!-- 新品/库存标签 -->
         <view class="card-badge hot" wx:if="{{isNewProduct(item)}}">新品</view>
         <view class="card-badge low" wx:elif="{{item.stock <= 5}}">仅剩{{item.stock}}</view>
