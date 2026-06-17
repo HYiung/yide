@@ -511,20 +511,30 @@ def verify_order(request):
 
 # 健康检查接口（用于部署后快速诊断）
 def health_check(request):
-    try:
-        # 测试数据库连接
-        product_count = Product.objects.count()
-        cart_count = CartItem.objects.count()
-        db_ok = True
-    except Exception as e:
-        db_ok = False
-        db_error = str(e)
-
-    return JsonResponse({
+    diagnostics = {
         'status': 'ok',
         'debug': settings.DEBUG,
-        'database': 'connected' if db_ok else f'error: {db_error}',
-        'product_count': product_count if db_ok else None,
-        'cart_count': cart_count if db_ok else None,
+        'database': 'unknown',
+        'tables': {},
         'allowed_hosts': settings.ALLOWED_HOSTS,
-    })
+    }
+
+    try:
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name")
+            tables = [row[0] for row in cursor.fetchall()]
+            diagnostics['tables']['all'] = tables
+
+            # Check if auth_user table exists (required for admin login)
+            has_auth_user = 'auth_user' in tables
+            diagnostics['tables']['has_auth_user'] = has_auth_user
+            if has_auth_user:
+                cursor.execute("SELECT count(*) FROM auth_user")
+                diagnostics['tables']['user_count'] = cursor.fetchone()[0]
+
+        diagnostics['database'] = 'connected'
+    except Exception as e:
+        diagnostics['database'] = f'error: {e}'
+
+    return JsonResponse(diagnostics)
