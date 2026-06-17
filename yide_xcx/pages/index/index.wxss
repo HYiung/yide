@@ -257,42 +257,45 @@ page {
 .footer {
   position: fixed;
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: 20rpx;
+  right: 20rpx;
   background: #ffffff;
   padding: 16rpx 24rpx;
   padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
   border-top: 2rpx solid #f0f0f0;
+  border-radius: 20rpx 20rpx 0 0;
   box-shadow: 0 -4rpx 16rpx rgba(0, 0, 0, 0.06);
   z-index: 999;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-sizing: border-box;
 }
 
 .footer-total {
   display: flex;
-  align-items: baseline;
-  gap: 12rpx;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
   flex-shrink: 0;
 }
 
 .total-label {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: #999;
   font-weight: 400;
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .total-amount {
-  font-size: 36rpx;
-  font-weight: 800;
+  font-size: 40rpx;
+  font-weight: 900;
   color: #e64340;
 }
 
 .footer-actions {
   display: flex;
-  gap: 20rpx;
+  gap: 16rpx;
   flex-shrink: 0;
 }
 
@@ -302,11 +305,11 @@ page {
   font-size: 26rpx !important;
   height: 64rpx !important;
   line-height: 64rpx !important;
-  padding: 0 24rpx !important;
+  padding: 0 28rpx !important;
   border-radius: 32rpx !important;
   font-weight: 500 !important;
   border: none !important;
-  min-width: 120rpx;
+  margin: 0 !important;
 }
 
 .btn-checkout {
@@ -315,12 +318,12 @@ page {
   font-size: 26rpx !important;
   height: 64rpx !important;
   line-height: 64rpx !important;
-  padding: 0 32rpx !important;
+  padding: 0 36rpx !important;
   border-radius: 32rpx !important;
   font-weight: 600 !important;
   border: none !important;
+  margin: 0 !important;
   box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.3) !important;
-  min-width: 140rpx;
 }
 
 /* 老版清空按钮兼容（不再使用，保留以防引用） */
