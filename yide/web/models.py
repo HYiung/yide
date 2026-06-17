@@ -6,10 +6,11 @@ class Product(models.Model):
     # 定义分类选项
     CATEGORY_CHOICES = [
         ('books', '名著书籍'),
-        ('pens', '各类笔'),
-        ('erasers', '橡皮擦'),
-        ('correction', '修正用品'),
-        ('others', '其他文具'),
+        ('pens', '书写工具'),
+        ('papers', '本册纸品'),
+        ('stationery', '学生文具'),
+        ('correction', '修正粘合'),
+        ('others', '其他用品'),
     ]
     # barcode 是条码，设为唯一索引，方便扫码枪秒查
     barcode = models.CharField(max_length=50, unique=True, verbose_name="条形码")

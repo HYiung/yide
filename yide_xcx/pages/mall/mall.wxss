@@ -125,26 +125,34 @@ page {
   box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.08);
 }
 
-/* 商品图片容器 */
+/* 商品图标容器（分类色背景 + emoji） */
 .card-img-wrap {
   position: relative;
   width: 100%;
-  padding-top: 80%;
-  background: #fafafa;
+  height: 240rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  transition: opacity 0.2s;
 }
 
-.card-img-wrap image {
+.card-img-wrap::after {
+  content: '';
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  padding: 30rpx;
-  box-sizing: border-box;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,0.15);
+  pointer-events: none;
+}
+
+.card-emoji {
+  font-size: 120rpx;
+  line-height: 1.2;
+  filter: drop-shadow(0 4rpx 8rpx rgba(0,0,0,0.15));
+  z-index: 1;
 }
 
 /* 角标 - 新品/热卖 */

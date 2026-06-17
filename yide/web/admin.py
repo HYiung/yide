@@ -105,26 +105,38 @@ class ProductAdmin(admin.ModelAdmin):
     actions = ['auto_categorize']
 
     def auto_categorize(self, request, queryset):
-        """根据商品名称关键词自动分类"""
+        """根据商品名称关键词自动分类（6大分类体系）"""
         CATEGORY_KEYWORDS = {
-            'books': ['书', '本', '名著', '阅读', '作文', '语文', '英语', '数学', '教材', '练习册', '字典', '词典', '字帖', '绘本'],
-            'pens': ['笔', '铅笔', '钢笔', '圆珠笔', '签字笔', '马克笔', '荧光笔', '水彩笔', '蜡笔', '中性笔', '彩笔', '画笔', '白板笔'],
-            'erasers': ['橡皮', '擦', '胶擦'],
-            'correction': ['修正', '涂改', '改正', '胶带', '修正带', '修正液', '改正带'],
+            'books': ['名著', '阅读', '作文', '语文', '英语', '数学', '教材', '练习册', '字典', '词典', '字帖', '绘本'],
+            'pens': ['中性笔', '圆珠笔', '签字笔', '马克笔', '荧光笔', '水彩笔', '蜡笔', '彩笔', '画笔', '白板笔', '铅笔', '钢笔', '笔芯', '替芯', '墨水'],
+            'papers': ['笔记本', '作业本', '本子', '便签', '方格本', '稿纸', '复印纸', '打印纸', '活页', '线圈本', '胶套本', '文件袋', '档案袋'],
+            'stationery': ['橡皮', '擦', '尺', '圆规', '剪刀', '订书', '打孔', '笔袋', '文具盒', '书包', '削笔', '卷笔', '垫板', '美工刀', '切纸', '学生'],
+            'correction': ['修正', '涂改', '改正', '修正带', '修正液', '改正带', '固体胶', '胶水', '胶棒', '胶带', '胶擦'],
+        }
+        CATEGORY_EXCLUDE = {
+            'books': ['订', '装订', '封'],
         }
         count = 0
         for product in queryset:
+            assigned = False
             for cat, keywords in CATEGORY_KEYWORDS.items():
+                exclude_words = CATEGORY_EXCLUDE.get(cat, [])
+                if any(kw in product.name for kw in exclude_words):
+                    continue
                 for kw in keywords:
                     if kw in product.name:
                         if product.category != cat:
                             product.category = cat
                             product.save(update_fields=['category'])
                             count += 1
+                        assigned = True
                         break
-                else:
-                    continue
-                break
+                if assigned:
+                    break
+            if not assigned and product.category != 'others':
+                product.category = 'others'
+                product.save(update_fields=['category'])
+                count += 1
         self.message_user(request, f'已自动分类 {count} 个商品')
     auto_categorize.short_description = '🤖 按名称关键词自动分类'
 

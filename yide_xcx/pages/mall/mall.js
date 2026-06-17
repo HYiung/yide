@@ -10,10 +10,11 @@ Page({
     searchKey: '',
     categories: [
       { id: 'all', name: '全部' },
-      { id: 'books', name: '📚 名著' },
-      { id: 'pens', name: '🖊️ 笔类' },
-      { id: 'erasers', name: '🧽 橡皮' },
-      { id: 'correction', name: '📦 修正' },
+      { id: 'books', name: '📚 名著书籍' },
+      { id: 'pens', name: '🖊️ 书写工具' },
+      { id: 'papers', name: '📓 本册纸品' },
+      { id: 'stationery', name: '📐 学生文具' },
+      { id: 'correction', name: '📦 修正粘合' },
       { id: 'others', name: '📎 其他' }
     ],
     cart: [],
@@ -52,7 +53,8 @@ Page({
       if (data && data.status === 'success') {
         const products = (data.list || []).map(p => ({
           ...p,
-          iconUrl: this.getCategoryIcon(p.category),
+          iconEmoji: this.getCategoryIcon(p.category),
+          categoryColor: this.getCategoryColor(p.category),
           _createTime: p.create_time
         }));
         this.setData({
@@ -133,19 +135,34 @@ Page({
       category: product.category,
       stock: this.getProductStock(product),
       num: num,
-      iconUrl: this.getCategoryIcon(product.category)
+      iconEmoji: this.getCategoryIcon(product.category),
+      categoryColor: this.getCategoryColor(product.category)
     };
   },
 
   getCategoryIcon: function(category) {
+    // 使用 emoji 作为商品图标，100% 可靠永不失效
     const icons = {
-      'books': 'https://cdn-icons-png.flaticon.com/512/2232/2232688.png',
-      'pens': 'https://cdn-icons-png.flaticon.com/512/3361/3361993.png',
-      'erasers': 'https://cdn-icons-png.flaticon.com/512/4781/4781902.png',
-      'correction': 'https://cdn-icons-png.flaticon.com/512/5603/5603981.png',
-      'others': 'https://cdn-icons-png.flaticon.com/512/2462/2462630.png'
+      'books': '📖',
+      'pens': '✏️',
+      'papers': '📓',
+      'stationery': '📐',
+      'correction': '📦',
+      'others': '📎'
     };
-    return icons[category] || 'https://cdn-icons-png.flaticon.com/512/2541/2541991.png';
+    return icons[category] || '📦';
+  },
+
+  getCategoryColor: function(category) {
+    const colors = {
+      'books': '#667eea',
+      'pens': '#f5576c',
+      'papers': '#4facfe',
+      'stationery': '#43e97b',
+      'correction': '#fa709a',
+      'others': '#a8edea'
+    };
+    return colors[category] || '#c0c0c0';
   },
 
   addToCart: function (e) {

@@ -35,10 +35,11 @@
       <text class="label">商品分类</text>
       <view class="category-picker">
         <view class="cat-option {{category == 'books' ? 'active' : ''}}" data-cat="books" bindtap="selectCategory">📚 名著书籍</view>
-        <view class="cat-option {{category == 'pens' ? 'active' : ''}}" data-cat="pens" bindtap="selectCategory">🖊️ 各类笔</view>
-        <view class="cat-option {{category == 'erasers' ? 'active' : ''}}" data-cat="erasers" bindtap="selectCategory">🧹 橡皮修正</view>
-        <view class="cat-option {{category == 'correction' ? 'active' : ''}}" data-cat="correction" bindtap="selectCategory">📦 修正用品</view>
-        <view class="cat-option {{category == 'others' ? 'active' : ''}}" data-cat="others" bindtap="selectCategory">📎 其他文具</view>
+        <view class="cat-option {{category == 'pens' ? 'active' : ''}}" data-cat="pens" bindtap="selectCategory">🖊️ 书写工具</view>
+        <view class="cat-option {{category == 'papers' ? 'active' : ''}}" data-cat="papers" bindtap="selectCategory">📓 本册纸品</view>
+        <view class="cat-option {{category == 'stationery' ? 'active' : ''}}" data-cat="stationery" bindtap="selectCategory">📐 学生文具</view>
+        <view class="cat-option {{category == 'correction' ? 'active' : ''}}" data-cat="correction" bindtap="selectCategory">📦 修正粘合</view>
+        <view class="cat-option {{category == 'others' ? 'active' : ''}}" data-cat="others" bindtap="selectCategory">📎 其他</view>
       </view>
     </view>
 
