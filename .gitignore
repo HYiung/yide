@@ -5,6 +5,10 @@ __pycache__/
 db.sqlite3
 .DS_Store
 
+# Data files with potentially sensitive info
+*.xlsx
+*.xls
+
 # Environment variables (contain secrets)
 .env
 .env.*

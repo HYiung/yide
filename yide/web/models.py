@@ -32,14 +32,6 @@ class CartItem(models.Model):
     quantity = models.IntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
 
-class SaleRecord(models.Model):
-    # 关联商品
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    # 销售时间
-    sale_time = models.DateTimeField(auto_now_add=True)
-    # 销售价格（防止以后商品调价，这里记录当时的价格）
-    price_at_sale = models.DecimalField(max_digits=10, decimal_places=2)
-
 class SaleHistory(models.Model):
     product_name = models.CharField(max_length=100, verbose_name="商品名称")
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="单价")
@@ -62,8 +54,6 @@ class AdminUser(models.Model):
         return self.name
 
 
-
-
 class Order(models.Model):
     # 生成一个唯一的短编号，比如：YD202310240001
     order_sn = models.CharField("订单编号", max_length=50, unique=True, editable=False, null=True)
@@ -74,10 +64,9 @@ class Order(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.order_sn:
-            # 自动生成编号逻辑
             import datetime
             now = datetime.datetime.now()
-            self.order_sn = now.strftime('%Y%m%d%H%M%S') + str(uuid.uuid4().hex[:4]).upper()
+            self.order_sn = now.strftime('%Y%m%d%H%M%S') + uuid.uuid4().hex[:8].upper()
         super().save(*args, **kwargs)
 
     class Meta:

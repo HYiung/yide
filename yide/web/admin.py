@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from .models import AdminUser, Order, OrderItem, Product, SaleHistory
+from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
 
 
 # 1. 订单详情嵌入
@@ -77,7 +77,14 @@ class ProductAdmin(admin.ModelAdmin):
     ordering = ('-create_time',)
 
 
-# 5. 销售历史管理
+# 5. 购物车管理（方便查看当前购物车状态）
+@admin.register(CartItem)
+class CartItemAdmin(admin.ModelAdmin):
+    list_display = ('product', 'quantity', 'added_at')
+    ordering = ('-added_at',)
+
+
+# 6. 销售历史管理
 @admin.register(SaleHistory)
 class SaleHistoryAdmin(admin.ModelAdmin):
     list_display = ('product_name', 'quantity', 'price', 'get_sale_time')

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 
 import os
+import warnings
 from pathlib import Path
 import dj_database_url
 
@@ -21,15 +22,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-c=5lhznpp#&238(#*j4-431jb^$n@i2b5q$^y*fw_p_a*cu_2=')
+# ⚠️ 生产环境必须设置 DJANGO_SECRET_KEY 环境变量，不要使用默认值！
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    warnings.warn(
+        "DJANGO_SECRET_KEY 未设置，使用不安全的开发用默认密钥，请勿用于生产环境！"
+    )
+    SECRET_KEY = 'insecure-dev-key-do-not-use-in-production'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
 ALLOWED_HOSTS = ['.vercel.app', '.now.sh', 'localhost', '192.168.1.138']
 
-# WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
-# WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
 WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
 WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
 
@@ -78,33 +83,25 @@ WSGI_APPLICATION = 'yide.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-# 检查是否运行在 Vercel 云端环境
-# if os.environ.get('VERCEL'):
-#     # 🌟 生产环境：秒速解析 Vercel + Neon 自动注入的云端数据库链接
-#     DATABASES = {
-#         'default': dj_database_url.config(
-#             env='DATABASE_URL',  # Neon 注入的标准变量名
-#             conn_max_age=600,    # 保持连接池复用，提升小程序接口响应速度
-#             ssl_require=True     # 远程连接云数据库必须开启 SSL 安全加密
-#         )
-#     }
-# else:
-#     # 💻 本地电脑测试环境：依然用你本机的 SQLite，互不干扰
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': 'django.db.backends.sqlite3',
-#             'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-#         }
-#     }
-DATABASES = {
-    # 1. 保留你原来的本地数据库作为 default
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3', # 如果你本地是 mysql/postgres，保持你原样别动
-        'NAME': BASE_DIR / 'db.sqlite3',        # 这一块是你原本的本地配置，千万别丢
-    },
-    # 2. 额外开一条线，直接挂载云端数据库，起名叫 'cloud'
-    'cloud': dj_database_url.parse(os.environ.get('CLOUD_DATABASE_URL', ''))
-}
+# 数据库配置
+# - 如果设置了 CLOUD_DATABASE_URL 环境变量（Vercel 生产环境），则使用云端数据库
+# - 否则使用本地 SQLite（开发环境）
+CLOUD_DATABASE_URL = os.environ.get('CLOUD_DATABASE_URL')
+if CLOUD_DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            CLOUD_DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True
+        )
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators

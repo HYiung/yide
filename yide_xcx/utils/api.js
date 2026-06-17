@@ -1,5 +1,9 @@
-const BASE_URL = 'http://192.168.1.138:8000';
-// const BASE_URL = 'https://yide-hy.vercel.app';
+// 生产环境请改为 false
+const DEV_MODE = false;
+
+const BASE_URL = DEV_MODE
+  ? 'http://192.168.1.138:8000'
+  : 'https://yide-hy.vercel.app';
 
 function buildUrl(path) {
   if (/^https?:\/\//.test(path)) {

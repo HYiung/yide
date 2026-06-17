@@ -1,4 +1,5 @@
 import json
+import logging
 from decimal import Decimal, InvalidOperation
 
 import requests
@@ -11,6 +12,8 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
+
+logger = logging.getLogger(__name__)
 
 
 def get_request_int(value, default=0):
@@ -43,48 +46,36 @@ def serialize_order(order):
 def check_role(request):
     code = request.GET.get('code')
     if not code and request.method == 'POST':
-        import json
         try:
-            # 如果前端发的是标准的 json post
             data = json.loads(request.body)
             code = data.get('code')
-        except:
-            # 如果前端发的是 form 表单 post
+        except (json.JSONDecodeError, TypeError, AttributeError):
             code = request.POST.get('code')
 
     appid = getattr(settings, 'WECHAT_APPID', '')
     secret = getattr(settings, 'WECHAT_SECRET', '')
 
-    # 打印一下看看拿没拿到，方便调试
-    print(f"--- 收到请求，当前 code 为: {code} ---")
-
     if not code or not appid or not secret:
-        print("--- 缺少必要参数，直接判定为普通顾客 ---")
+        logger.warning("微信登录参数缺失，缺省为普通顾客")
         return JsonResponse({'role': 'customer'})
 
-    # 1. 换取 OpenID 的逻辑直接写在这里
-    url = f"https://api.weixin.qq.com/sns/jscode2session?appid={appid}&secret={secret}&js_code={code}&grant_type=authorization_code"
+    url = (f"https://api.weixin.qq.com/sns/jscode2session"
+           f"?appid={appid}&secret={secret}&js_code={code}&grant_type=authorization_code")
 
     try:
         res = requests.get(url, timeout=5).json()
         openid = res.get('openid')
         if not openid:
+            logger.warning("微信登录返回无 openid: %s", res)
             return JsonResponse({'role': 'customer'})
 
-        # 调试用：在控制台打印出 openid，这就是长辈的“身份证号”
-        print(f"--- 当前访问者的OpenID: {openid} ---")
-
-        # 2. 检查数据库白名单
-        # 如果你还没建表或没存数据，可以先手动判断自己的 ID 跑通逻辑
         is_admin = AdminUser.objects.filter(openid=openid).exists()
-
-        if is_admin:
-            return JsonResponse({'role': 'admin'})
-        else:
-            return JsonResponse({'role': 'customer'})
+        role = 'admin' if is_admin else 'customer'
+        logger.info("用户角色判定: openid=%s -> %s", openid[:8], role)
+        return JsonResponse({'role': role})
 
     except Exception as e:
-        print(f"请求微信接口失败: {e}")
+        logger.error("请求微信接口失败: %s", e)
         return JsonResponse({'role': 'customer'})
 
 
@@ -97,11 +88,11 @@ def cash_register(request):
 def get_product_by_barcode(request):
     barcode = request.GET.get('barcode')
     if not barcode:
-        return JsonResponse({'status': 'error', 'message': '条码不能为空'})
+        return JsonResponse({'status': 'fail', 'msg': '条码不能为空'})
 
     product = Product.objects.filter(barcode=barcode).first()
     if not product:
-        return JsonResponse({'status': 'error', 'message': '未找到商品'})
+        return JsonResponse({'status': 'fail', 'msg': '未找到商品'})
 
     return JsonResponse({
         'status': 'success',
@@ -132,7 +123,7 @@ def get_cart_status(request):
 def add_item(request):
     barcode = request.GET.get('barcode')
     if not barcode:
-        return JsonResponse({'status': 'error', 'message': '条码不能为空'})
+        return JsonResponse({'status': 'fail', 'msg': '条码不能为空'})
 
     try:
         with transaction.atomic():
@@ -143,7 +134,7 @@ def add_item(request):
             if product.stock < target_quantity:
                 if created:
                     item.delete()
-                return JsonResponse({'status': 'error', 'message': '库存不足'})
+                return JsonResponse({'status': 'fail', 'msg': '库存不足'})
 
             if not created:
                 item.quantity = target_quantity
@@ -154,23 +145,23 @@ def add_item(request):
             'name': product.name,
             'price': str(product.price),
             'current_qty': target_quantity,
-            'remaining_stock': product.stock  # 这里显示的是当前的静态库存
+            'remaining_stock': product.stock
         })
     except Product.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': '未找到商品'})
+        return JsonResponse({'status': 'fail', 'msg': '未找到商品'})
 
 
 # 按钮 A：单纯清空（网页端用，用于扫错重来）
 def reset_cart(request):
     CartItem.objects.all().delete()
-    return JsonResponse({'status': 'success', 'message': '账单已重置'})
+    return JsonResponse({'status': 'success', 'msg': '账单已重置'})
 
 
 # 按钮 B：正式结账（小程序端用，扣库存+记账）
 def checkout_cart(request):
     cart_items = CartItem.objects.select_related('product').all()
     if not cart_items.exists():
-        return JsonResponse({'status': 'error', 'message': '账单为空'})
+        return JsonResponse({'status': 'fail', 'msg': '账单为空'})
 
     try:
         with transaction.atomic():
@@ -179,30 +170,26 @@ def checkout_cart(request):
                 product = Product.objects.select_for_update().get(pk=item.product_id)
                 if product.stock < item.quantity:
                     return JsonResponse({
-                        'status': 'error',
-                        'message': f'{product.name} 库存不足，当前库存 {product.stock}，需要 {item.quantity}'
+                        'status': 'fail',
+                        'msg': f'{product.name} 库存不足，当前库存 {product.stock}，需要 {item.quantity}'
                     })
                 locked_cart_items.append((item, product))
 
             for item, product in locked_cart_items:
-                # 1. 记录到销售历史 (这是统计的来源！)
                 SaleHistory.objects.create(
                     product_name=product.name,
                     price=product.price,
                     quantity=item.quantity
-                    # sale_date 会自动使用 auto_now_add 生成
                 )
 
-                # 2. 扣减库存
                 product.stock -= item.quantity
                 product.save(update_fields=['stock'])
 
-            # 3. 最后清空购物车
             cart_items.delete()
 
         return JsonResponse({'status': 'success'})
     except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)})
+        return JsonResponse({'status': 'fail', 'msg': str(e)})
 
 
 # 今日营业额
@@ -383,13 +370,17 @@ def get_pending_orders(request):
 def get_low_stock_products(request):
     threshold = min(max(get_request_int(request.GET.get('threshold'), 5), 0), 9999)
     limit = min(max(get_request_int(request.GET.get('limit'), 10), 1), 100)
-    query = Product.objects.filter(stock__lte=threshold).order_by('stock', 'name')
-    products = query[:limit]
+    base_query = Product.objects.filter(stock__lte=threshold)
+    total_count = base_query.count()
+    products = list(
+        base_query.order_by('stock', 'name')[:limit]
+        .values('id', 'barcode', 'name', 'stock', 'price', 'category')
+    )
     return JsonResponse({
         'status': 'success',
         'threshold': threshold,
-        'total_count': query.count(),
-        'list': list(products.values('id', 'barcode', 'name', 'stock', 'price', 'category'))
+        'total_count': total_count,
+        'list': products
     }, json_dumps_params={'ensure_ascii': False})
 
 
