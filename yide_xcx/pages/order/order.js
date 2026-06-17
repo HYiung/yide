@@ -18,7 +18,13 @@ Page({
       return;
     }
 
-    this.setData({ cart, totalPrice });
+    // 预计算小计（WXML不支持.toFixed()）
+    const cartWithSubtotal = cart.map(item => ({
+      ...item,
+      subtotal: (Number(item.num) * Number(item.price)).toFixed(2)
+    }));
+
+    this.setData({ cart: cartWithSubtotal, totalPrice });
   },
 
   onNameInput: function (e) {
