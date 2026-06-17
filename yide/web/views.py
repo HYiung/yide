@@ -458,7 +458,7 @@ SEED_PRODUCTS = [
 
 @csrf_exempt
 def seed_sample_products(request):
-    """一键部署示例商品数据到云端数据库"""
+    """一键部署示例商品数据到云端数据库（覆盖更新，确保分类正确）"""
     from .models import Product
     from decimal import Decimal
 
@@ -476,10 +476,13 @@ def seed_sample_products(request):
         )
         if created:
             added += 1
-        elif product.stock < stock:
-            # 如果已有且库存较少，补货到目标库存
+        else:
+            # 条码已存在 → 全覆盖更新（名称/价格/库存/分类全部刷新）
+            product.name = name
+            product.price = Decimal(str(price))
             product.stock = stock
-            product.save(update_fields=['stock'])
+            product.category = category
+            product.save(update_fields=['name', 'price', 'stock', 'category'])
             updated += 1
 
     return JsonResponse({
