@@ -10,19 +10,16 @@ page {
   flex-direction: column;
 }
 
-/* 1. 顶部绿色卡片：开启换行模式 */
 /* 顶部绿色卡片 */
 .today-card {
   background: #07c160;
   border-radius: 20rpx;
   padding: 30rpx;
   margin-bottom: 30rpx;
-  display: block; /* 改回 block，靠内部元素自撑 */
   box-sizing: border-box;
   width: 700rpx;
 }
 
-/* 新增：专门负责第一行排版的容器 */
 .stats-row {
   display: flex;
   justify-content: space-between;
@@ -65,9 +62,8 @@ page {
   color: #333;
 }
 
-/* 核心：重置搜索按钮，防止它挤乱布局 */
 .search-box button {
-  width: 130rpx !important; /* 强制固定宽度 */
+  width: 130rpx !important;
   min-width: 130rpx !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -79,7 +75,6 @@ page {
   border-radius: 30rpx !important;
 }
 
-/* 搜索结果弹窗 - 保持浅黄底色增加对比 */
 .search-result {
   margin-top: 20rpx;
   padding: 20rpx;
@@ -99,96 +94,6 @@ page {
   color: #333;
 }
 
-/* 实时清单标题 */
-.header {
-  font-size: 36rpx;
-  font-weight: bold;
-  color: #333;
-  padding: 20rpx 0;
-  text-align: center;
-}
-
-/* ... 后面实时清单和 footer 的代码保持原样即可 ... */
-
-/* --- 实时清单卡片 --- */
-.cart-card {
-  background-color: #fff;
-  border-radius: 20rpx;
-  padding: 20rpx 30rpx;
-  min-height: 400rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
-}
-
-.item-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 25rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-
-.item-name {
-  font-size: 34rpx;
-  color: #333;
-  font-weight: 500;
-}
-
-.item-info {
-  text-align: right;
-}
-
-.item-price {
-  font-size: 34rpx;
-  font-weight: bold;
-  color: #333;
-}
-
-.stock-warning {
-  font-size: 24rpx;
-  color: #ff4d4f;
-  display: block;
-}
-
-.empty-tips {
-  text-align: center;
-  color: #999;
-  font-size: 32rpx;
-}
-
-/* --- 底部结算区 --- */
-.footer {
-  margin-top: 30rpx;
-  background-color: #fff;
-  padding: 30rpx;
-  border-radius: 20rpx;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border: 4rpx solid #07c160;
-  /* 绿色边框更柔和 */
-}
-
-.total-label {
-  font-size: 36rpx;
-  font-weight: bold;
-}
-
-.total-amount {
-  font-size: 56rpx;
-  font-weight: 900;
-  color: #07c160;
-}
-
-.clear-btn {
-  margin-top: 30rpx;
-  background-color: #07c160 !important;
-  color: white !important;
-  font-size: 38rpx !important;
-  height: 100rpx !important;
-  line-height: 100rpx !important;
-  border-radius: 50rpx !important;
-  font-weight: bold;
-}
 .order-items {
   color: #666;
   font-size: 24rpx;
@@ -211,8 +116,7 @@ page {
   margin-bottom: 12rpx;
 }
 
-.pending-row,
-.low-stock-row {
+.pending-row, .low-stock-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -242,12 +146,175 @@ page {
   border: 2rpx solid #ffd666;
 }
 
-.low-stock-row {
-  color: #333;
-  font-size: 26rpx;
-}
-
 .low-stock-num {
   color: #ff4d4f;
+  font-weight: bold;
+}
+
+/* --- 实时清单标题 --- */
+.header {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+  padding: 20rpx 0;
+  text-align: center;
+}
+
+/* --- 购物车卡片 --- */
+.cart-card {
+  background-color: #fff;
+  border-radius: 20rpx;
+  padding: 10rpx 30rpx;
+  min-height: 200rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.item-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.item-name {
+  font-size: 32rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.stock-warning {
+  font-size: 22rpx;
+  color: #ff4d4f;
+  margin-top: 4rpx;
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+/* 数量加减控件 */
+.qty-ctrl {
+  display: flex;
+  align-items: center;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+
+.qty-btn {
+  width: 52rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  text-align: center;
+  font-size: 30rpx;
+  color: #333;
+  background: #f5f5f5;
+}
+
+.qty-num {
+  min-width: 40rpx;
+  text-align: center;
+  font-size: 28rpx;
+  padding: 0 8rpx;
+}
+
+.item-price {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #e64340;
+  min-width: 80rpx;
+  text-align: right;
+}
+
+/* 删除按钮 */
+.del-btn {
+  width: 44rpx;
+  height: 44rpx;
+  line-height: 44rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #999;
+  border-radius: 50%;
+  background: #f5f5f5;
+}
+
+.empty-tips {
+  color: #999;
+  font-size: 32rpx;
+}
+
+/* --- 底部结算区 --- */
+.footer {
+  margin-top: 30rpx;
+  background-color: #fff;
+  padding: 24rpx 30rpx;
+  border-radius: 20rpx;
+  border: 4rpx solid #07c160;
+}
+
+.footer-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 20rpx;
+}
+
+.total-label {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.total-amount {
+  font-size: 56rpx;
+  font-weight: 900;
+  color: #07c160;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 20rpx;
+}
+
+.btn-clear {
+  flex: 1;
+  background-color: #f5f5f5 !important;
+  color: #666 !important;
+  font-size: 34rpx !important;
+  height: 88rpx !important;
+  line-height: 88rpx !important;
+  border-radius: 44rpx !important;
+  font-weight: bold;
+  border: 1rpx solid #ddd !important;
+}
+
+.btn-checkout {
+  flex: 2;
+  background-color: #07c160 !important;
+  color: white !important;
+  font-size: 34rpx !important;
+  height: 88rpx !important;
+  line-height: 88rpx !important;
+  border-radius: 44rpx !important;
+  font-weight: bold;
+}
+
+/* 老版清空按钮兼容（不再使用，保留以防引用） */
+.clear-btn {
+  margin-top: 30rpx;
+  background-color: #07c160 !important;
+  color: white !important;
+  font-size: 38rpx !important;
+  height: 100rpx !important;
+  line-height: 100rpx !important;
+  border-radius: 50rpx !important;
   font-weight: bold;
 }

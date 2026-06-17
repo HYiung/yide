@@ -8,6 +8,8 @@ urlpatterns = [
     path('add_item/', views.add_item, name='add_item'),  # 电脑扫码枪调用
     path('get_cart_status/', views.get_cart_status, name='get_cart_status'),  # 小程序/网页同步显示
     path('reset_cart/', views.reset_cart, name='reset_cart'),  # 网页清空用
+    path('remove_cart_item/', views.remove_cart_item, name='remove_cart_item'),  # 删除单个购物车商品
+    path('update_cart_item/', views.update_cart_item, name='update_cart_item'),  # 修改购物车商品数量
     path('checkout_cart/', views.checkout_cart, name='checkout_cart'),  # 小程序结账用
     path('get_product_by_barcode/', views.get_product_by_barcode, name='get_product_by_barcode'),  # 仅查价调用
     path('get_today_stats/', views.get_today_stats, name='get_today_stats'),  # 今日销售额调用
@@ -20,4 +22,5 @@ urlpatterns = [
     path('api/low_stock_products/', views.get_low_stock_products, name='low_stock_products'),  # 低库存提醒
     path('api/search_order/', views.search_order, name='search_order'),  # 查询状态为 0 (待取货) 的订单
     path('api/verify_order/', views.verify_order, name='verify_order'),  # 核销状态为 0 (待取货) 的订单
+    path('api/health/', views.health_check, name='health_check'),  # 健康检查
 ]

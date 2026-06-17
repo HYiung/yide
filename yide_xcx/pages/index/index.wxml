@@ -48,32 +48,44 @@
     </view>
   </view>
 
-<view class="header">一得书苑 · 实时清单</view>
+  <view class="header">一得书苑 · 实时清单</view>
 
-<view class="cart-card">
-  <view wx:if="{{cart.length > 0}}">
-    <view class="item-row" wx:for="{{cart}}" wx:key="id">
-      <text class="item-name">{{item.name}}</text>
-      <view class="item-info">
-        <text class="item-price">￥{{item.price}} × {{item.quantity}}</text>
-        <text class="stock-warning" wx:if="{{item.remaining_stock < 5}}">
-          (补货: {{item.remaining_stock}})
-        </text>
+  <!-- 购物车列表 -->
+  <view class="cart-card">
+    <view wx:if="{{cart.length > 0}}">
+      <view class="item-row" wx:for="{{cart}}" wx:key="id">
+        <view class="item-main">
+          <text class="item-name">{{item.name}}</text>
+          <text class="stock-warning" wx:if="{{item.remaining_stock < 5}}">
+            (库存: {{item.remaining_stock}})
+          </text>
+        </view>
+        <view class="item-actions">
+          <view class="qty-ctrl">
+            <view class="qty-btn" bindtap="onDecrement" data-id="{{item.id}}">−</view>
+            <text class="qty-num">{{item.quantity}}</text>
+            <view class="qty-btn" bindtap="onIncrement" data-id="{{item.id}}">+</view>
+          </view>
+          <text class="item-price">￥{{item.price}}</text>
+          <view class="del-btn" bindtap="onRemoveItem" data-id="{{item.id}}">✕</view>
+        </view>
       </view>
     </view>
+    <view wx:else class="empty-tips" style="padding:100rpx 0;text-align:center;">
+      <text>欢迎使用一得书苑收银系统</text>
+      <text style="display:block;margin-top:20rpx;color:#999;font-size:26rpx;">扫码添加商品或选择商品后自动计入</text>
+    </view>
   </view>
-  <view wx:if="{{cart.length > 0}}"></view>
-  <view wx:else class="empty-tips" style="padding-top:100rpx;">
-    <text>欢迎使用一得书苑收银系统</text>
+
+  <!-- 底栏：合计 + 操作按钮 -->
+  <view class="footer" wx:if="{{cart.length > 0}}">
+    <view class="footer-top">
+      <text class="total-label">应收合计：</text>
+      <text class="total-amount">￥{{total}}</text>
+    </view>
+    <view class="footer-actions">
+      <button class="btn-clear" bindtap="onResetCart">🗑️ 清空</button>
+      <button class="btn-checkout" bindtap="onFinish">✅ 收款完成</button>
+    </view>
   </view>
-</view>
-
-
-
-<view class="footer">
-  <text class="total-label">应收合计：</text>
-  <text class="total-amount">￥{{total}}</text>
-</view>
-
-<button class="clear-btn" bindtap="onFinish">收款完成/清空</button>
 </view>

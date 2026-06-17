@@ -204,7 +204,130 @@ Page({
       });
   },
 
-  // 点击“收款完成”按钮（扫码结账）
+  // 增加数量
+  onIncrement: function (e) {
+    const productId = e.currentTarget.dataset.id;
+    const item = this.data.cart.find(v => v.id === productId);
+    if (!item) return;
+
+    if (item.quantity >= item.remaining_stock) {
+      wx.showToast({ title: `库存仅剩 ${item.remaining_stock} 件`, icon: 'none' });
+      return;
+    }
+
+    wx.showLoading({ title: '更新中...' });
+    api.request({
+      url: '/update_cart_item/',
+      data: { product_id: productId, quantity: item.quantity + 1 }
+    }).then((data) => {
+      wx.hideLoading();
+      if (data.status === 'success') {
+        this.refreshDashboard();
+      } else {
+        wx.showToast({ title: data.msg || '操作失败', icon: 'none' });
+      }
+    }).catch(() => {
+      wx.hideLoading();
+      wx.showToast({ title: '网络异常', icon: 'none' });
+    });
+  },
+
+  // 减少数量（减到0则删除）
+  onDecrement: function (e) {
+    const productId = e.currentTarget.dataset.id;
+    const item = this.data.cart.find(v => v.id === productId);
+    if (!item) return;
+
+    if (item.quantity <= 1) {
+      // 直接调用删除
+      this.removeSingleItem(productId);
+      return;
+    }
+
+    wx.showLoading({ title: '更新中...' });
+    api.request({
+      url: '/update_cart_item/',
+      data: { product_id: productId, quantity: item.quantity - 1 }
+    }).then((data) => {
+      wx.hideLoading();
+      if (data.status === 'success') {
+        this.refreshDashboard();
+      } else {
+        wx.showToast({ title: data.msg || '操作失败', icon: 'none' });
+      }
+    }).catch(() => {
+      wx.hideLoading();
+      wx.showToast({ title: '网络异常', icon: 'none' });
+    });
+  },
+
+  // 删除单个商品
+  onRemoveItem: function (e) {
+    const productId = e.currentTarget.dataset.id;
+    wx.showModal({
+      title: '移除商品',
+      content: '确定移除此商品吗？',
+      success: (res) => {
+        if (res.confirm) {
+          this.removeSingleItem(productId);
+        }
+      }
+    });
+  },
+
+  removeSingleItem: function (productId) {
+    wx.showLoading({ title: '移除中...' });
+    api.request({
+      url: '/remove_cart_item/',
+      data: { product_id: productId }
+    }).then((data) => {
+      wx.hideLoading();
+      if (data.status === 'success') {
+        wx.showToast({ title: '已移除', icon: 'success' });
+        this.refreshDashboard();
+      } else {
+        wx.showToast({ title: data.msg || '移除失败', icon: 'none' });
+      }
+    }).catch(() => {
+      wx.hideLoading();
+      wx.showToast({ title: '网络异常', icon: 'none' });
+    });
+  },
+
+  // 清空购物车（不扣库存）
+  onResetCart: function () {
+    if (this.data.cart.length === 0) {
+      wx.showToast({ title: '当前账单为空', icon: 'none' });
+      return;
+    }
+
+    wx.showModal({
+      title: '确认清空',
+      content: '确定要清空当前账单吗？（此操作不会扣除库存）',
+      success: (res) => {
+        if (!res.confirm) return;
+
+        wx.showLoading({ title: '清空中...' });
+        api.request({ url: '/reset_cart/' })
+          .then((data) => {
+            wx.hideLoading();
+            if (data.status === 'success') {
+              this.setData({ cart: [], total: '0.00' });
+              wx.showToast({ title: '已清空', icon: 'success' });
+              this.refreshDashboard();
+            } else {
+              wx.showToast({ title: data.msg || '清空失败', icon: 'none' });
+            }
+          })
+          .catch(() => {
+            wx.hideLoading();
+            wx.showToast({ title: '清空失败，请检查网络', icon: 'none' });
+          });
+      }
+    });
+  },
+
+  // 点击”收款完成”按钮（扫码结账）
   onFinish: function () {
     if (this.data.cart.length === 0) {
       wx.showToast({ title: '当前账单为空', icon: 'none' });
@@ -226,7 +349,7 @@ Page({
               wx.showToast({ title: '已结账', icon: 'success' });
               this.refreshDashboard();
             } else {
-              wx.showToast({ title: data.message || '结账失败', icon: 'none' });
+              wx.showToast({ title: data.msg || '结账失败', icon: 'none' });
             }
           })
           .catch((err) => {

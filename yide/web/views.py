@@ -157,6 +157,64 @@ def reset_cart(request):
     return JsonResponse({'status': 'success', 'msg': '账单已重置'})
 
 
+# 删除购物车中的单个商品（按条码或商品ID）
+def remove_cart_item(request):
+    barcode = request.GET.get('barcode')
+    product_id = request.GET.get('product_id')
+    if barcode:
+        deleted, _ = CartItem.objects.filter(product__barcode=barcode).delete()
+    elif product_id:
+        deleted, _ = CartItem.objects.filter(product_id=product_id).delete()
+    else:
+        return JsonResponse({'status': 'fail', 'msg': '请提供 barcode 或 product_id'})
+    return JsonResponse({'status': 'success', 'msg': '已移除', 'deleted': deleted})
+
+
+# 修改购物车中某个商品的数量（按条码或商品ID）
+def update_cart_item(request):
+    barcode = request.GET.get('barcode')
+    product_id = request.GET.get('product_id')
+    qty = request.GET.get('quantity')
+    try:
+        quantity = int(qty)
+    except (TypeError, ValueError):
+        return JsonResponse({'status': 'fail', 'msg': 'quantity 必须是整数'})
+
+    if quantity <= 0:
+        # 数量 <= 0 视为删除
+        if barcode:
+            CartItem.objects.filter(product__barcode=barcode).delete()
+        elif product_id:
+            CartItem.objects.filter(product_id=product_id).delete()
+        else:
+            return JsonResponse({'status': 'fail', 'msg': '请提供 barcode 或 product_id'})
+        return JsonResponse({'status': 'success', 'msg': '已移除'})
+
+    try:
+        with transaction.atomic():
+            if barcode:
+                product = Product.objects.select_for_update().get(barcode=barcode)
+            else:
+                product = Product.objects.select_for_update().get(pk=product_id)
+
+            if product.stock < quantity:
+                return JsonResponse({'status': 'fail', 'msg': f'{product.name} 库存不足，仅剩 {product.stock}'})
+
+            item, created = CartItem.objects.select_for_update().get_or_create(product=product)
+            item.quantity = quantity
+            item.save(update_fields=['quantity'])
+
+        return JsonResponse({
+            'status': 'success',
+            'name': product.name,
+            'price': str(product.price),
+            'quantity': quantity,
+            'remaining_stock': product.stock
+        })
+    except Product.DoesNotExist:
+        return JsonResponse({'status': 'fail', 'msg': '未找到商品'})
+
+
 # 按钮 B：正式结账（小程序端用，扣库存+记账）
 def checkout_cart(request):
     cart_items = CartItem.objects.select_related('product').all()
@@ -449,3 +507,24 @@ def verify_order(request):
         return JsonResponse({'status': 'fail', 'msg': '未找到待取货订单'})
     except Exception as e:
         return JsonResponse({'status': 'fail', 'msg': str(e)})
+
+
+# 健康检查接口（用于部署后快速诊断）
+def health_check(request):
+    try:
+        # 测试数据库连接
+        product_count = Product.objects.count()
+        cart_count = CartItem.objects.count()
+        db_ok = True
+    except Exception as e:
+        db_ok = False
+        db_error = str(e)
+
+    return JsonResponse({
+        'status': 'ok',
+        'debug': settings.DEBUG,
+        'database': 'connected' if db_ok else f'error: {db_error}',
+        'product_count': product_count if db_ok else None,
+        'cart_count': cart_count if db_ok else None,
+        'allowed_hosts': settings.ALLOWED_HOSTS,
+    })
