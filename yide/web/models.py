@@ -28,9 +28,13 @@ class Product(models.Model):
 
 class CartItem(models.Model):
     # 简单的购物车：这里假设店里只有一个收银台，所以直接存
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.IntegerField(default=1)
-    added_at = models.DateTimeField(auto_now_add=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, verbose_name="商品")
+    quantity = models.IntegerField(default=1, verbose_name="数量")
+    added_at = models.DateTimeField(auto_now_add=True, verbose_name="添加时间")
+
+    class Meta:
+        verbose_name = "购物车"
+        verbose_name_plural = "购物车管理"
 
 class SaleHistory(models.Model):
     product_name = models.CharField(max_length=100, verbose_name="商品名称")
@@ -74,6 +78,10 @@ class Order(models.Model):
         verbose_name_plural = "商城订单管理"
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE, verbose_name="所属订单")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, verbose_name="商品")
     count = models.IntegerField("数量")
+
+    class Meta:
+        verbose_name = "订单商品"
+        verbose_name_plural = "订单商品明细"

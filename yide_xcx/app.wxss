@@ -1,4 +1,9 @@
 /**app.wxss**/
+/* 全局字体：确保所有页面中文正常显示（尤其是 skyline 渲染器下） */
+page {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+}
+
 .container {
   height: 100%;
   display: flex;
@@ -7,4 +12,4 @@
   justify-content: space-between;
   padding: 200rpx 0;
   box-sizing: border-box;
-} 
+}

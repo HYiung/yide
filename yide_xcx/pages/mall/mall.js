@@ -25,9 +25,10 @@ Page({
   },
 
   onShow: function() {
+    // 每次页面显示时重新加载数据（tab 切换、navigateBack 等场景）
+    this.fetchData(this.data.activeCat);
     const cart = wx.getStorageSync('cart') || [];
     this.calculateTotal(cart);
-    this.fetchData(this.data.activeCat);
   },
 
   fetchData: function (category) {
@@ -235,12 +236,7 @@ Page({
           url: '/api/check_role/',
           data: { code: res.code }
         }).then((data) => {
-          if (data.role === 'admin') {
-            wx.setStorageSync('is_admin', true);
-            wx.switchTab({ url: '/pages/index/index' });
-          } else {
-            wx.setStorageSync('is_admin', false);
-          }
+          wx.setStorageSync('is_admin', data.role === 'admin');
         }).catch((err) => {
           console.error('身份检查失败', err);
         });

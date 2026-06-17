@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils.safestring import mark_safe
 
 from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
 
@@ -10,13 +11,15 @@ class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
     readonly_fields = ('product', 'count')
+    verbose_name = "商品明细"
+    verbose_name_plural = "商品明细"
 
 
 # 2. 商城订单管理
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     # 重点：把 order_sn 放在第一位，方便长辈核对编号
-    list_display = ('order_sn', 'customer_name', 'total_price', 'status', 'create_time')
+    list_display = ('order_sn_link', 'customer_name', 'total_price', 'status', 'status_colored', 'create_time')
 
     # 只有 status 可以在列表页直接勾选修改
     list_editable = ('status',)
@@ -27,10 +30,34 @@ class OrderAdmin(admin.ModelAdmin):
     # 搜索框支持按姓名和订单号搜索
     search_fields = ('customer_name', 'order_sn')
 
+    # 日期快速导航
+    date_hierarchy = 'create_time'
+
     # 订单编号是自动生成的，设为只读，防止后台误改
     readonly_fields = ('order_sn', 'create_time')
 
+    # 列表页每页显示条数
+    list_per_page = 20
+
     inlines = [OrderItemInline]
+
+    # ---------- 自定义显示 ----------
+
+    def order_sn_link(self, obj):
+        """订单号可点击跳转详情"""
+        from django.urls import reverse
+        url = reverse('admin:web_order_change', args=[obj.pk])
+        return mark_safe(f'<a href="{url}" style="font-family:monospace;">{obj.order_sn}</a>')
+    order_sn_link.short_description = "订单编号"
+    order_sn_link.admin_order_field = 'order_sn'
+
+    def status_colored(self, obj):
+        """状态显示为彩色标签"""
+        if obj.status == 1:
+            return mark_safe('<span style="color:#07c160;font-weight:bold;">✅ 已完成</span>')
+        return mark_safe('<span style="color:#faad14;font-weight:bold;">⏳ 待取货</span>')
+    status_colored.short_description = "状态"
+    status_colored.admin_order_field = 'status'
 
     def save_model(self, request, obj, form, change):
         # 如果是修改操作，且状态被改成了“已完成(1)”
@@ -81,6 +108,7 @@ class ProductAdmin(admin.ModelAdmin):
 @admin.register(CartItem)
 class CartItemAdmin(admin.ModelAdmin):
     list_display = ('product', 'quantity', 'added_at')
+    list_display_links = ('product',)
     ordering = ('-added_at',)
 
 

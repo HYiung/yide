@@ -271,6 +271,7 @@ page {
 .total-label {
   font-size: 36rpx;
   font-weight: bold;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .total-amount {

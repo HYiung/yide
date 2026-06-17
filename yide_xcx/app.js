@@ -27,10 +27,6 @@ App({
           const isAdmin = data.role === 'admin';
           wx.setStorageSync('is_admin', isAdmin);
           console.log(`身份确认：${isAdmin ? '店主' : '顾客'}`);
-
-          if (isAdmin) {
-            wx.switchTab({ url: '/pages/index/index' });
-          }
         }).catch((err) => {
           console.error('角色检查请求失败', err);
           wx.setStorageSync('is_admin', false);

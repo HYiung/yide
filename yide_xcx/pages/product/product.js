@@ -10,6 +10,11 @@ Page({
     submitting: false
   },
 
+  onShow: function () {
+    // skyline 渲染器下 tab 切换后刷新状态
+    console.log('product page onShow');
+  },
+
   scanBarcode: function() {
     wx.scanCode({
       scanType: ['barCode', 'qrCode'], // 明确指定扫描条码和二维码
