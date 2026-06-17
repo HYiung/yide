@@ -6,8 +6,13 @@ Page({
     name: '',
     price: '',
     stock: 1,
+    category: 'others',
     currentStock: null,
     submitting: false
+  },
+
+  selectCategory: function(e) {
+    this.setData({ category: e.currentTarget.dataset.cat });
   },
 
   onShow: function () {
@@ -26,6 +31,7 @@ Page({
           name: '',
           price: '',
           stock: 1,
+          category: 'others',
           currentStock: null
         });
         if (code) {
@@ -46,10 +52,12 @@ Page({
       data: { barcode: code }
     }).then((data) => {
       if (data.status === 'success') {
+        const category = data.category || 'others';
         this.setData({
           name: data.name,
           price: data.price,
-          currentStock: data.stock
+          currentStock: data.stock,
+          category: category
         });
         wx.showToast({ title: '匹配到旧商品', icon: 'none' });
       } else {
@@ -94,7 +102,8 @@ Page({
         barcode: barcode,
         name: name,
         price: price.toFixed(2),
-        stock: stock
+        stock: stock,
+        category: this.data.category
       }
     }).then((data) => {
       wx.hideLoading();
@@ -105,7 +114,7 @@ Page({
           content: `当前总库存：${data.current_stock}`,
           showCancel: false,
           success: () => {
-            this.setData({ barcode: '', name: '', price: '', stock: 1, currentStock: null });
+            this.setData({ barcode: '', name: '', price: '', stock: 1, category: 'others', currentStock: null });
           }
         });
       } else {

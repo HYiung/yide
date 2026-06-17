@@ -102,6 +102,30 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ('category', 'create_time') # 增加分类筛选
     search_fields = ('barcode', 'name')
     ordering = ('-create_time',)
+    actions = ['auto_categorize']
+
+    def auto_categorize(self, request, queryset):
+        """根据商品名称关键词自动分类"""
+        CATEGORY_KEYWORDS = {
+            'books': ['书', '本', '名著', '阅读', '作文', '语文', '英语', '数学', '教材', '练习册', '字典', '词典', '字帖', '绘本'],
+            'pens': ['笔', '铅笔', '钢笔', '圆珠笔', '签字笔', '马克笔', '荧光笔', '水彩笔', '蜡笔', '中性笔', '彩笔', '画笔', '白板笔'],
+            'erasers': ['橡皮', '修正', '涂改', '改正', '胶带', '修正带', '修正液', '擦', '胶擦'],
+        }
+        count = 0
+        for product in queryset:
+            for cat, keywords in CATEGORY_KEYWORDS.items():
+                for kw in keywords:
+                    if kw in product.name:
+                        if product.category != cat:
+                            product.category = cat
+                            product.save(update_fields=['category'])
+                            count += 1
+                        break
+                else:
+                    continue
+                break
+        self.message_user(request, f'已自动分类 {count} 个商品')
+    auto_categorize.short_description = '🤖 按名称关键词自动分类'
 
 
 # 5. 购物车管理（方便查看当前购物车状态）

@@ -98,7 +98,8 @@ def get_product_by_barcode(request):
         'status': 'success',
         'name': product.name,
         'price': str(product.price),  # Decimal 需要转字符串
-        'stock': product.stock
+        'stock': product.stock,
+        'category': product.category  # 返回分类，让前端能回显
     })
 
 
@@ -286,6 +287,7 @@ def quick_add_product(request):
     barcode = request.GET.get('barcode')
     name = request.GET.get('name')
     price = request.GET.get('price')
+    category = request.GET.get('category', 'others')  # 新增：分类参数，默认其他
 
     try:
         stock = int(request.GET.get('stock', 0))
@@ -300,23 +302,30 @@ def quick_add_product(request):
     if price_value < 0:
         return JsonResponse({'status': 'fail', 'msg': '价格不能为负数'})
 
+    # 校验分类有效性
+    valid_categories = ['books', 'pens', 'erasers', 'others']
+    if category not in valid_categories:
+        category = 'others'
+
     with transaction.atomic():
         product, created = Product.objects.select_for_update().get_or_create(
             barcode=barcode,
             defaults={
                 'name': name,
                 'price': price_value,
-                'stock': 0
+                'stock': 0,
+                'category': category
             }
         )
 
         if not created:
             product.name = name
             product.price = price_value
+            product.category = category  # 允许更新分类
 
         # 增加库存
         product.stock += stock
-        product.save(update_fields=['name', 'price', 'stock'])
+        product.save(update_fields=['name', 'price', 'stock', 'category'])
 
     return JsonResponse({
         'status': 'success',
@@ -341,6 +350,37 @@ def get_mall_products(request):
         'status': 'success',
         'list': list(products)
     }, json_dumps_params={'ensure_ascii': False})
+
+
+# 根据商品名称关键词自动分类（供管理员一键整理用）
+CATEGORY_KEYWORDS = {
+    'books': ['书', '本', '名著', '阅读', '作文', '语文', '英语', '数学', '教材', '练习册', '字典', '词典', '字帖', '绘本'],
+    'pens': ['笔', '铅笔', '钢笔', '圆珠笔', '签字笔', '马克笔', '荧光笔', '水彩笔', '蜡笔', '中性笔', '彩笔', '画笔', '白板笔'],
+    'erasers': ['橡皮', '修正', '涂改', '改正', '胶带', '修正带', '修正液', '擦', '胶擦'],
+}
+
+@csrf_exempt
+def auto_categorize_products(request):
+    """一键自动分类：根据商品名称关键词分配分类"""
+    from .models import Product
+
+    count = 0
+    for product in Product.objects.all():
+        old_cat = product.category
+        assigned = False
+        for cat, keywords in CATEGORY_KEYWORDS.items():
+            for kw in keywords:
+                if kw in product.name:
+                    if product.category != cat:
+                        product.category = cat
+                        product.save(update_fields=['category'])
+                        count += 1
+                    assigned = True
+                    break
+            if assigned:
+                break
+
+    return JsonResponse({'status': 'success', 'updated': count})
 
 
 @csrf_exempt

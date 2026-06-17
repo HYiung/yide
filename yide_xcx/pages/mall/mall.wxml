@@ -1,14 +1,14 @@
 <scroll-view class="mall-container" scroll-y="true">
-  <view class="banner">一得书苑</view>
-
   <scroll-view class="category-bar" scroll-x="true">
     <view class="cat-item {{activeCat == item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:key="id"
       bindtap="switchCat" data-id="{{item.id}}">{{item.name}}</view>
   </scroll-view>
 
-  <view class="product-list">
+  <view wx:if="{{loading}}" class="loading-tip">加载中...</view>
+
+  <view class="product-list" wx:elif="{{products.length > 0}}">
     <view class="product-item" wx:for="{{products}}" wx:key="id">
-      <image src="https://cdn-icons-png.flaticon.com/512/2541/2541991.png" mode="aspectFit"></image>
+      <image src="{{item.iconUrl || 'https://cdn-icons-png.flaticon.com/512/2541/2541991.png'}}" mode="aspectFit"></image>
       <view class="info">
         <text class="name">{{item.name}}</text>
         <text class="price">￥{{item.price}}</text>
@@ -17,6 +17,7 @@
       </view>
     </view>
   </view>
+  <view wx:elif="{{!loading && products.length == 0}}" class="empty-tip">该分类暂无商品</view>
   <view style="height: 150rpx;"></view>
 </scroll-view>
 

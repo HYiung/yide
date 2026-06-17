@@ -78,8 +78,20 @@ Page({
       price: Number(product.price),
       category: product.category,
       stock: this.getProductStock(product),
-      num: num
+      num: num,
+      iconUrl: this.getCategoryIcon(product.category)
     };
+  },
+
+  getCategoryIcon: function(category) {
+    // 各类文具对应不同图标（Flaticon CDN，与项目原有用法一致）
+    const icons = {
+      'books': 'https://cdn-icons-png.flaticon.com/512/2232/2232688.png',
+      'pens': 'https://cdn-icons-png.flaticon.com/512/3361/3361993.png',
+      'erasers': 'https://cdn-icons-png.flaticon.com/512/4781/4781902.png',
+      'others': 'https://cdn-icons-png.flaticon.com/512/2462/2462630.png'
+    };
+    return icons[category] || 'https://cdn-icons-png.flaticon.com/512/2541/2541991.png';
   },
 
   // 加入购物车 (主列表按钮)
