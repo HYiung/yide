@@ -8,7 +8,7 @@ functions:
   cloud:
     - path: /*
       runtime: python
-      entry: cloud-functions/api
+      entry: cloud-functions/api/server.py
       regions:
         mainland: ap-guangzhou
       environment:
