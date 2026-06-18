@@ -1,7 +1,7 @@
 asgiref==3.11.1
 certifi==2026.5.20
 charset-normalizer==3.4.7
-Django==3.2.23
+django==3.2.23
 et_xmlfile==2.0.0
 idna==3.17
 openpyxl==3.1.5
