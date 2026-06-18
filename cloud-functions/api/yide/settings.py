@@ -100,7 +100,7 @@ if CLOUD_DATABASE_URL:
     url = urlparse(CLOUD_DATABASE_URL)
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'ENGINE': 'django.db.backends.postgresql',
             'NAME': url.path[1:],          # 去掉开头的 /
             'USER': url.username,
             'PASSWORD': url.password,
