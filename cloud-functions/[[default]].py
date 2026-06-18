@@ -10,6 +10,7 @@ EdgeOne Pages Catch-All WSGI 入口
 """
 import os
 import sys
+import traceback
 
 # 将 Django 项目目录 api/ 加入 Python 路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -19,16 +20,28 @@ if api_dir not in sys.path:
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'yide.settings')
 
-from django.core.wsgi import get_wsgi_application
-application = get_wsgi_application()
+# ========== 尝试加载 Django（带 fallback 诊断） ==========
+_django_ok = False
+_django_error = None
 
-# ========== 冷启动自动迁移 ==========
-import django
-from django.core.management import call_command
 try:
-    call_command('migrate', interactive=False)
-    from django.contrib.auth.models import User
-    if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@example.com', 'Admin123456')
+    from django.core.wsgi import get_wsgi_application
+    # ⚠️ 保持下面这行作为 EdgeOne WSGI 检测标记，不要改成别的变量名
+    application = get_wsgi_application()
+    _django_ok = True
 except Exception as e:
-    print(f"Auto-migration skipped: {e}")
+    _django_error = traceback.format_exc()
+    print(f"Django init error: {_django_error}", flush=True)
+    # 定义 fallback 应用返回诊断信息
+    def application(environ, start_response):
+        status = '500 Internal Server Error'
+        headers = [('Content-Type', 'text/plain; charset=utf-8')]
+        start_response(status, headers)
+        body = (
+            f"ERROR: Django failed to initialize\n\n"
+            f"{_django_error}\n\n"
+            f"PYTHONPATH: {sys.path[:5]}\n"
+            f"PYTHON VERSION: {sys.version}\n"
+            f"ENV KEYS: {[k for k in os.environ.keys() if not k.startswith('_')]}\n"
+        )
+        return [body.encode('utf-8')]
