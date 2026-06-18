@@ -1,5 +1,6 @@
 """
-EdgeOne Pages WSGI 入口 — 导入 Django 应用暴露给平台
+EdgeOne Pages WSGI 入口 — 直接创建 Django WSGI 应用
+（不导入 wsgi.py，避免模块导入时自动执行迁移）
 """
 import os
 import sys
@@ -10,4 +11,5 @@ if current_dir not in sys.path:
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'yide.settings')
 
-from yide.wsgi import application
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
