@@ -1,0 +1,15 @@
+asgiref==3.11.1
+certifi==2026.5.20
+charset-normalizer==3.4.7
+Django==3.2.23
+et_xmlfile==2.0.0
+idna==3.17
+openpyxl==3.1.5
+pytz==2026.2
+requests==2.32.3
+sqlparse==0.5.5
+typing_extensions==4.15.0
+urllib3==2.7.0
+dj-database-url==1.0.0
+psycopg2-binary==2.9.9
+whitenoise==6.6.0

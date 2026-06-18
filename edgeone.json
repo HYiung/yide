@@ -9,9 +9,6 @@
         "path": "/*",
         "runtime": "python",
         "entry": "cloud-functions/api",
-        "regions": {
-          "mainland": "ap-guangzhou"
-        },
         "environment": {
           "DJANGO_SETTINGS_MODULE": "yide.settings",
           "DJANGO_SECRET_KEY": "${DJANGO_SECRET_KEY}",
