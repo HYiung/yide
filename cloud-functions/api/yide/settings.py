@@ -34,12 +34,12 @@ if not SECRET_KEY:
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
 ALLOWED_HOSTS = [
-    '.vercel.app',              # Vercel 旧域名（保留兼容）
-    '.now.sh',                  # Vercel 旧域名
-    '.pages.dev',               # EdgeOne Pages 新域名
-    '.edgeone.cool',            # EdgeOne Pages 域名
-    '.edgeone.dev',             # EdgeOne Pages dev 域名
-    '.dpdns.org',               # 自定义域名（含前导点，匹配子域名）
+    '.vercel.app',
+    '.now.sh',
+    '.pages.dev',
+    '.edgeone.cool',
+    '.edgeone.dev',
+    '.dpdns.org',
     'localhost',
     '192.168.1.138',
 ]
@@ -61,7 +61,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    # 'whitenoise.middleware.WhiteNoiseMiddleware',  # 暂无 whitenoise
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -92,14 +91,9 @@ WSGI_APPLICATION = 'yide.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-# 数据库配置
-# - 如果设置了 CLOUD_DATABASE_URL 环境变量（Vercel 生产环境），则使用云端数据库
-# - 否则使用本地 SQLite（开发环境）
 CLOUD_DATABASE_URL = os.environ.get('CLOUD_DATABASE_URL')
 if CLOUD_DATABASE_URL:
-    # TODO: PostgreSQL 支持待 EdgeOne 安装 psycopg 后启用
-    # 目前临时使用 SQLite 验证 WSGI 流程
-    pass
+    pass  # TODO: PostgreSQL 待部署 EdgeOne 后启用
 
 DATABASES = {
     'default': {
@@ -131,7 +125,6 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'zh-hans'
 TIME_ZONE = 'Asia/Shanghai'
-# 3. 关键：关闭 USE_TZ，这样 Django 就会直接使用本地时间存入数据库
 USE_I18N = True
 USE_TZ = False
 
@@ -140,7 +133,6 @@ USE_TZ = False
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-# 简化存储后端，避免 CompressedManifest 在 Vercel serverless 上出错
 STORAGES = {
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
@@ -155,5 +147,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # 把 Session 存储从数据库转移到浏览器客户端加密 Cookie
 SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
-# 可选：确保即使重启也保持一小段时间登录（防止 Vercel 刷新后失效）
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
