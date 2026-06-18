@@ -8,7 +8,7 @@
 
 ## 本地安装与测试
 
-建议使用 Python 3.10 运行 Django 3.2.x；如果系统默认 Python 太新，可以显式使用 `python3.10` 创建虚拟环境。
+建议使用 Python 3.12 运行 Django 5.2.x；如果系统默认 Python 版本不符，可以使用 `python3.12` 创建虚拟环境。
 
 ```bash
 python3.10 -m venv .venv
@@ -20,10 +20,10 @@ python yide/manage.py test
 # 也可以显式指定 Django app：python yide/manage.py test web
 ```
 
-如果当前网络环境无法访问 PyPI，需要先配置一个可以访问的代理或包镜像；确认 `python -m pip install Django==3.2.23` 能成功后，再运行上面的 Django 检查和测试命令。如果从仓库根目录执行测试遇到 unittest 去导入 `yide.web` 或 `yide.yide`，请更新到包含 manage.py 修复的版本，或临时使用 `python yide/manage.py test web`。
+如果当前网络环境无法访问 PyPI，需要先配置一个可以访问的代理或包镜像；确认 `python -m pip install Django==5.2.15` 能成功后，再运行上面的 Django 检查和测试命令。如果从仓库根目录执行测试遇到 unittest 去导入 `yide.web` 或 `yide.yide`，请更新到包含 manage.py 修复的版本，或临时使用 `python yide/manage.py test web`。
 ```
 
-如果当前网络环境无法访问 PyPI，需要先配置一个可以访问的代理或包镜像；确认 `python -m pip install Django==3.2.23` 能成功后，再运行上面的 Django 检查和测试命令。
+如果当前网络环境无法访问 PyPI，需要先配置一个可以访问的代理或包镜像；确认 `python -m pip install Django==5.2.15` 能成功后，再运行上面的 Django 检查和测试命令。
 
 ## 运行配置
 
