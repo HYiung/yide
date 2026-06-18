@@ -97,21 +97,40 @@ WSGI_APPLICATION = 'yide.wsgi.application'
 # - 否则使用本地 SQLite（开发环境）
 CLOUD_DATABASE_URL = os.environ.get('CLOUD_DATABASE_URL')
 if CLOUD_DATABASE_URL:
-    url = urlparse(CLOUD_DATABASE_URL)
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': url.path[1:],          # 去掉开头的 /
-            'USER': url.username,
-            'PASSWORD': url.password,
-            'HOST': url.hostname,
-            'PORT': url.port,
-            'CONN_MAX_AGE': 600,
-            'OPTIONS': {
-                'sslmode': 'require',
-            },
+    try:
+        # 验证 PostgreSQL 驱动是否可用
+        import psycopg  # noqa
+        use_pg = True
+    except ImportError:
+        try:
+            import psycopg2  # noqa
+            use_pg = True
+        except ImportError:
+            warnings.warn("CLOUD_DATABASE_URL 已设置但 psycopg/psycopg2 未安装，降级到 SQLite")
+            use_pg = False
+    if use_pg:
+        url = urlparse(CLOUD_DATABASE_URL)
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': url.path[1:],          # 去掉开头的 /
+                'USER': url.username,
+                'PASSWORD': url.password,
+                'HOST': url.hostname,
+                'PORT': url.port,
+                'CONN_MAX_AGE': 600,
+                'OPTIONS': {
+                    'sslmode': 'require',
+                },
+            }
         }
-    }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 else:
     DATABASES = {
         'default': {
