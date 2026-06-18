@@ -34,9 +34,10 @@ if not SECRET_KEY:
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
 ALLOWED_HOSTS = [
-    '.vercel.app',      # Vercel 旧域名（保留兼容）
-    '.now.sh',          # Vercel 旧域名
-    '.pages.dev',       # EdgeOne Pages 新域名
+    '.vercel.app',              # Vercel 旧域名（保留兼容）
+    '.now.sh',                  # Vercel 旧域名
+    '.pages.dev',               # EdgeOne Pages 新域名
+    '.edgeone.cool',            # EdgeOne Pages 域名
     'localhost',
     '192.168.1.138',
 ]

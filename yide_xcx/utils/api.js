@@ -2,11 +2,11 @@
 const DEV_MODE = false;
 
 // 生产环境域名
-// 旧：https://yide-hy.vercel.app（Vercel，已迁移）
-// 新：部署到 EdgeOne Pages 后替换下方的域名
+// 旧：https://yide-hy.vercel.app（Vercel）
+// 新：https://yideshuyuan-pehlausf.edgeone.cool（EdgeOne Pages）
 const BASE_URL = DEV_MODE
   ? 'http://192.168.1.138:8000'
-  : 'https://yide-hy.vercel.app';
+  : 'https://yideshuyuan-pehlausf.edgeone.cool';
 
 function buildUrl(path) {
   if (/^https?:\/\//.test(path)) {
