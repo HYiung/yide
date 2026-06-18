@@ -3,27 +3,6 @@
     "name": "yide-bookstore",
     "type": "pages"
   },
-  "server": {
-    "handler": "cloud-functions/api/index.application",
-    "runtime": "python"
-  },
-  "functions": {
-    "origin": [
-      {
-        "path": "/*",
-        "runtime": "python",
-        "entry": "cloud-functions/api",
-        "environment": {
-          "DJANGO_SETTINGS_MODULE": "yide.settings",
-          "DJANGO_SECRET_KEY": "${DJANGO_SECRET_KEY}",
-          "DJANGO_DEBUG": "${DJANGO_DEBUG}",
-          "CLOUD_DATABASE_URL": "${CLOUD_DATABASE_URL}",
-          "WECHAT_APPID": "${WECHAT_APPID}",
-          "WECHAT_SECRET": "${WECHAT_SECRET}"
-        }
-      }
-    ]
-  },
   "build": {
     "python": {
       "version": "3.10",
@@ -34,10 +13,6 @@
       ".venv/",
       "venv",
       "__pycache__"
-    ],
-    "commands": [
-      "python cloud-functions/api/manage.py collectstatic --noinput",
-      "python cloud-functions/api/manage.py migrate --noinput"
     ]
   },
   "deploy": {

@@ -8,7 +8,7 @@
 
 ## 本地安装与测试
 
-建议使用 Python 3.12 运行 Django 5.2.x；如果系统默认 Python 版本不符，可以使用 `python3.12` 创建虚拟环境。
+建议使用 Python 3.10~3.12 运行 Django 5.2.x；推荐 Python 3.12，但 3.10 也可正常使用。
 
 ```bash
 python3.10 -m venv .venv
