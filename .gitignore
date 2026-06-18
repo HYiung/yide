@@ -19,6 +19,9 @@ db.sqlite3
 *.swp
 *.swo
 
+# Claude Code
+.claude/
+
 # Vercel (migrated to EdgeOne Pages)
 .vercel
 vercel.json
