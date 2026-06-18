@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 import os
 import warnings
 from pathlib import Path
-import dj_database_url
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,6 +38,8 @@ ALLOWED_HOSTS = [
     '.now.sh',                  # Vercel 旧域名
     '.pages.dev',               # EdgeOne Pages 新域名
     '.edgeone.cool',            # EdgeOne Pages 域名
+    '.edgeone.dev',             # EdgeOne Pages dev 域名
+    'dpdns.org',                # 自定义域名
     'localhost',
     '192.168.1.138',
 ]
@@ -95,12 +97,20 @@ WSGI_APPLICATION = 'yide.wsgi.application'
 # - 否则使用本地 SQLite（开发环境）
 CLOUD_DATABASE_URL = os.environ.get('CLOUD_DATABASE_URL')
 if CLOUD_DATABASE_URL:
+    url = urlparse(CLOUD_DATABASE_URL)
     DATABASES = {
-        'default': dj_database_url.parse(
-            CLOUD_DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=True
-        )
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': url.path[1:],          # 去掉开头的 /
+            'USER': url.username,
+            'PASSWORD': url.password,
+            'HOST': url.hostname,
+            'PORT': url.port,
+            'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                'sslmode': 'require',
+            },
+        }
     }
 else:
     DATABASES = {
