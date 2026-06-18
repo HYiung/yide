@@ -19,8 +19,7 @@ def _init_django():
     if _django_app is not None or _init_error is not None:
         return
     try:
-        import django
-        django.setup()
+        # EdgeOne 环境已预初始化 Django，直接获取 WSGI handler
         from django.core.handlers.wsgi import WSGIHandler
         _django_app = WSGIHandler()
         print("Django initialized successfully", flush=True)
