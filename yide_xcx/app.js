@@ -17,7 +17,7 @@ App({
       success: (res) => {
         if (!res.code) {
           wx.setStorageSync('is_admin', false);
-          wx.reLaunch({ url: '/pages/mall/mall' });
+          this._redirectToMall();
           return;
         }
 
@@ -28,25 +28,28 @@ App({
           const isAdmin = data.role === 'admin';
           wx.setStorageSync('is_admin', isAdmin);
           console.log(`身份确认：${isAdmin ? '店主' : '顾客'}`);
-
-          // 店主 → 跳转收银台，顾客 → 跳转商城
-          if (isAdmin) {
-            wx.reLaunch({ url: '/pages/index/index' });
-          } else {
-            wx.reLaunch({ url: '/pages/mall/mall' });
-          }
+          // 不主动跳转，让各个页面的 onLoad/onShow 自行判断
+          // 避免频繁 wx.reLaunch 导致页面反复重建
         }).catch((err) => {
           console.error('角色检查请求失败', err);
           wx.setStorageSync('is_admin', false);
-          wx.reLaunch({ url: '/pages/mall/mall' });
+          this._redirectToMall();
         });
       },
       fail: (err) => {
         console.error('微信登录失败', err);
         wx.setStorageSync('is_admin', false);
-        wx.reLaunch({ url: '/pages/mall/mall' });
+        this._redirectToMall();
       }
     });
+  },
+
+  _redirectToMall() {
+    const pages = getCurrentPages();
+    const current = pages[pages.length - 1];
+    if (!current || current.route !== 'pages/mall/mall') {
+      wx.reLaunch({ url: '/pages/mall/mall' });
+    }
   },
 
   globalData: {

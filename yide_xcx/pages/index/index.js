@@ -24,22 +24,47 @@ Page({
     pendingOrders: [],
     lowStockProducts: [],
     lowStockCount: 0,
-    activeTab: 'orders'   // 'orders' | 'lowstock'
+    activeTab: 'orders',   // 'orders' | 'lowstock'
+    _autoSwitched: false,
+    _roleReady: false       // 身份确认后才渲染页面
   },
 
   onLoad: function () {
-    this.refreshDashboard();
-  },
-
-  onShow: function () {
-    // 顾客请去商城，收银台是店主用的
+    // 立即检查身份，顾客直接跳转，不渲染收银台内容
     const isAdmin = wx.getStorageSync('is_admin');
     if (isAdmin === false) {
       wx.reLaunch({ url: '/pages/mall/mall' });
       return;
     }
+    // 身份还未确认时（undefined），显示 loading 不渲染内容
+    if (isAdmin === undefined || isAdmin === '') {
+      return;
+    }
+    // 身份确认是店主，继续加载
+    this._initPage();
+  },
+
+  onShow: function () {
+    const isAdmin = wx.getStorageSync('is_admin');
+    if (isAdmin === false) {
+      wx.reLaunch({ url: '/pages/mall/mall' });
+      return;
+    }
+    if (isAdmin === undefined || isAdmin === '') {
+      return; // 等 checkRole 完成
+    }
+    if (!this.data._roleReady) {
+      this._initPage();
+    }
     this.refreshDashboard();
     this.startPolling();
+  },
+
+  _initPage: function () {
+    this.setData({ _roleReady: true });
+    this.refreshDashboard();
+    // 等数据加载完再决定默认切到哪个tab（仅首次）
+    setTimeout(() => this.autoSwitchOnce(), 500);
   },
 
   onHide: function () {
@@ -70,6 +95,16 @@ Page({
     this.checkMallOrders();
     this.fetchPendingOrders();
     this.fetchLowStockProducts();
+  },
+
+  // 首次加载完成后，自动切到有内容tab（仅执行一次）
+  autoSwitchOnce: function () {
+    if (this.data._autoSwitched) return;
+    const { pendingOrders, lowStockProducts } = this.data;
+    if (pendingOrders.length === 0 && lowStockProducts.length > 0) {
+      this.setData({ activeTab: 'lowstock' });
+    }
+    this.data._autoSwitched = true;
   },
 
   // 标签切换

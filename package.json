@@ -1,7 +1,0 @@
-{
-  "name": "yide-backend",
-  "version": "1.0.0",
-  "scripts": {
-    "vercel-build": "python yide/manage.py collectstatic --noinput && python yide/manage.py migrate --noinput"
-  }
-}

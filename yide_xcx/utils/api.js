@@ -1,6 +1,9 @@
 // 生产环境请改为 false
 const DEV_MODE = false;
 
+// 生产环境域名
+// 旧：https://yide-hy.vercel.app（Vercel，已迁移）
+// 新：部署到 EdgeOne Pages 后替换下方的域名
 const BASE_URL = DEV_MODE
   ? 'http://192.168.1.138:8000'
   : 'https://yide-hy.vercel.app';

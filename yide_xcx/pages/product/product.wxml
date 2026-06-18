@@ -1,50 +1,46 @@
 <view class="container">
-  <view class="header">
-    <text class="title">商品入库/补货</text>
-    <text class="subtitle">扫码即可自动识别旧商品或录入新商品</text>
-  </view>
-
   <view class="scan-section" bindtap="scanBarcode">
-    <button bindtap="scanBarcode">扫码识别</button>
+    <text class="scan-icon">📷</text>
+    <text class="scan-text">扫码识别商品</text>
   </view>
 
   <view class="form-card" wx:if="{{barcode}}">
-    <view class="input-group">
-      <text class="label">条形码</text>
-      <input class="input-disabled" value="{{barcode}}" disabled />
+    <view class="form-row">
+      <text class="flabel">条形码</text>
+      <input class="finput-disabled" value="{{barcode}}" disabled />
       <text wx:if="{{currentStock !== null}}" class="stock-tip">当前库存：{{currentStock}}</text>
     </view>
 
-    <view class="input-group">
-      <text class="label">商品名称</text>
-      <input class="input-main" placeholder="请输入商品名称" model:value="{{name}}" />
+    <view class="form-row">
+      <text class="flabel">商品名称</text>
+      <input class="finput" placeholder="请输入商品名称" model:value="{{name}}" />
     </view>
 
-    <view class="input-row">
-      <view class="input-group half">
-        <text class="label">单价 (元)</text>
-        <input class="input-main" type="digit" placeholder="0.00" model:value="{{price}}" />
+    <view class="form-row-short">
+      <view class="fhalf">
+        <text class="flabel">单价 (元)</text>
+        <input class="finput" type="digit" placeholder="0.00" model:value="{{price}}" />
       </view>
-      <view class="input-group half">
-        <text class="label">入库数量</text>
-        <input class="input-main" type="number" placeholder="1" model:value="{{stock}}" />
+      <view class="fhalf">
+        <text class="flabel">入库数量</text>
+        <input class="finput" type="number" placeholder="1" model:value="{{stock}}" />
       </view>
     </view>
 
-    <view class="input-group">
-      <text class="label">商品分类</text>
-      <view class="category-picker">
+    <view class="form-row">
+      <text class="flabel">分类</text>
+      <scroll-view class="cat-scroll" scroll-x="true" show-scrollbar="{{false}}">
         <view class="cat-option {{category == 'books' ? 'active' : ''}}" data-cat="books" bindtap="selectCategory">📚 名著书籍</view>
         <view class="cat-option {{category == 'pens' ? 'active' : ''}}" data-cat="pens" bindtap="selectCategory">🖊️ 书写工具</view>
         <view class="cat-option {{category == 'papers' ? 'active' : ''}}" data-cat="papers" bindtap="selectCategory">📓 本册纸品</view>
         <view class="cat-option {{category == 'stationery' ? 'active' : ''}}" data-cat="stationery" bindtap="selectCategory">📐 学生文具</view>
         <view class="cat-option {{category == 'correction' ? 'active' : ''}}" data-cat="correction" bindtap="selectCategory">📦 修正粘合</view>
         <view class="cat-option {{category == 'others' ? 'active' : ''}}" data-cat="others" bindtap="selectCategory">📎 其他</view>
-      </view>
+      </scroll-view>
     </view>
 
-    <button class="submit-btn" bindtap="submitData" loading="{{submitting}}" disabled="{{submitting}}">完成并入库</button>
+    <button class="submit-btn" bindtap="submitData" loading="{{submitting}}" disabled="{{submitting}}">完成入库</button>
   </view>
 </view>
-  <!-- 自定义底部导航 -->
-  <custom-tab-bar activeIndex="1" />
+<!-- 自定义底部导航 -->
+<custom-tab-bar activeIndex="1" />

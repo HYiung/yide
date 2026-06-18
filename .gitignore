@@ -18,4 +18,8 @@ db.sqlite3
 .idea/
 *.swp
 *.swo
+
+# Vercel (migrated to EdgeOne Pages)
 .vercel
+vercel.json
+package.json

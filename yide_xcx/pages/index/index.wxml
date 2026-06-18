@@ -1,4 +1,5 @@
 <view class="container">
+  <view wx:if="{{_roleReady}}" style="width:100%;">
   <!-- 顶部绿色卡片：营收 + 搜索核销 -->
   <view class="today-card">
     <view class="stats-row">
@@ -42,18 +43,19 @@
     </view>
 
     <!-- 待取货内容 -->
-    <view class="tab-content" wx:if="{{activeTab == 'orders' && pendingOrders.length > 0}}">
-      <view class="pending-row" wx:for="{{pendingOrders}}" wx:key="id">
-        <view class="pending-main">
-          <text class="pending-name">{{item.customer_name}}</text>
-          <text class="pending-sn">{{item.order_sn}}</text>
+    <view class="tab-content" hidden="{{!(activeTab == 'orders' && pendingOrders.length > 0)}}">
+      <view class="low-stock-row" wx:for="{{pendingOrders}}" wx:key="id">
+        <view class="low-stock-info">
+          <text class="ls-emoji">👤</text>
+          <text class="ls-name">{{item.customer_name}}  #{{item.order_sn.slice(-4)}}</text>
         </view>
-        <button size="mini" type="warn" bindtap="verifyOrder" data-id="{{item.id}}">核销</button>
+        <view class="ls-stock-tag" bindtap="verifyOrder" data-id="{{item.id}}">核销</view>
       </view>
     </view>
+    <view class="empty-tab-tip" hidden="{{!(activeTab == 'orders' && pendingOrders.length == 0)}}">暂无待取货订单</view>
 
     <!-- 低库存内容 -->
-    <view class="tab-content" wx:if="{{activeTab == 'lowstock' && lowStockProducts.length > 0}}">
+    <view class="tab-content" hidden="{{!(activeTab == 'lowstock' && lowStockProducts.length > 0)}}">
       <view class="low-stock-row" wx:for="{{lowStockProducts}}" wx:key="id">
         <view class="low-stock-info">
           <text class="ls-emoji">{{item.emoji}}</text>
@@ -117,5 +119,6 @@
     </view>
   </view>
 </view>
-  <!-- 自定义底部导航 -->
-  <custom-tab-bar activeIndex="0" />
+</view>
+<!-- 自定义底部导航 -->
+<custom-tab-bar activeIndex="0" />

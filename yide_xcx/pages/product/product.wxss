@@ -1,156 +1,116 @@
 .container {
-  padding: 20rpx;
-  padding-bottom: 120rpx;
+  padding: 10rpx 12rpx 140rpx;
   background-color: #f5f5f5;
   min-height: 100vh;
+  box-sizing: border-box;
 }
 
-.header {
-  margin: 80rpx 0 40rpx;
-  text-align: center;
-}
-
-.title {
-  font-size: 40rpx;
-  font-weight: bold;
-  color: #333;
-  display: block;
-}
-
-.subtitle {
-  font-size: 26rpx;
-  color: #999;
-  margin-top: 10rpx;
-  display: block;
-}
-
+/* 扫描区 — 简洁一行 */
 .scan-section {
   background: #fff;
-  border: 4rpx dashed #07c160;
-  border-radius: 24rpx;
-  height: 280rpx;
+  border: 3rpx dashed #07c160;
+  border-radius: 14rpx;
+  height: 80rpx;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20rpx;
-  position: relative;
-  transition: all 0.2s;
+  gap: 10rpx;
+  margin-bottom: 8rpx;
 }
 
 .scan-section:active {
   background: #f0faf4;
 }
 
-.scan-section::before {
-  content: '📷';
-  font-size: 60rpx;
-  margin-bottom: 16rpx;
+.scan-icon {
+  font-size: 32rpx;
 }
 
-.scan-section button {
-  background: #07c160 !important;
-  color: #fff !important;
-  font-size: 32rpx !important;
-  height: 80rpx !important;
-  line-height: 80rpx !important;
-  padding: 0 48rpx !important;
-  border-radius: 40rpx !important;
-  font-weight: 700 !important;
-  margin: 0 !important;
-  box-shadow: 0 4rpx 16rpx rgba(7, 193, 96, 0.3) !important;
+.scan-text {
+  font-size: 26rpx;
+  color: #07c160;
+  font-weight: 600;
 }
 
+/* 表单卡片 */
 .form-card {
   background: #fff;
-  margin-top: 20rpx;
-  padding: 30rpx;
-  border-radius: 20rpx;
+  border-radius: 14rpx;
+  padding: 12rpx 14rpx;
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.04);
 }
 
-.input-group {
-  margin-bottom: 28rpx;
+.form-row {
+  margin-bottom: 8rpx;
 }
 
-.label {
-  font-size: 26rpx;
+.form-row-short {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+
+.fhalf {
+  flex: 1;
+}
+
+.flabel {
+  font-size: 22rpx;
   color: #888;
-  margin-bottom: 10rpx;
+  margin-bottom: 4rpx;
   display: block;
   font-weight: 500;
 }
 
-.input-main {
-  height: 80rpx;
+.finput {
+  height: 56rpx;
   border: 2rpx solid #e8e8e8;
-  border-radius: 12rpx;
-  padding: 0 20rpx;
-  font-size: 32rpx;
+  border-radius: 8rpx;
+  padding: 0 12rpx;
+  font-size: 28rpx;
   width: 100%;
   box-sizing: border-box;
-  transition: border-color 0.2s;
+  background: #fff;
 }
 
-.input-main:focus {
-  border-color: #07c160;
-}
-
-.input-disabled {
-  height: 76rpx;
+.finput-disabled {
+  height: 52rpx;
   background: #f7f7f7;
-  border-radius: 12rpx;
-  padding: 0 20rpx;
+  border-radius: 8rpx;
+  padding: 0 12rpx;
   color: #666;
-  line-height: 76rpx;
-  font-size: 28rpx;
+  line-height: 52rpx;
+  font-size: 24rpx;
   border: 2rpx solid #eee;
 }
 
 .stock-tip {
   display: block;
-  margin-top: 8rpx;
-  font-size: 24rpx;
+  margin-top: 2rpx;
+  font-size: 20rpx;
   color: #07c160;
   font-weight: 600;
 }
 
-.input-row {
+/* 分类横向滚动 */
+.cat-scroll {
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
+  white-space: nowrap;
+  overflow-x: auto;
+  padding: 4rpx 0;
 }
 
-.half {
-  width: 48%;
-}
-
-.submit-btn {
-  background: linear-gradient(135deg, #07c160, #06ad56) !important;
-  color: #fff !important;
-  height: 90rpx !important;
-  line-height: 90rpx !important;
-  border-radius: 45rpx !important;
-  font-size: 32rpx !important;
-  margin-top: 30rpx !important;
-  font-weight: 700 !important;
-  border: none !important;
-  box-shadow: 0 4rpx 16rpx rgba(7, 193, 96, 0.3) !important;
-}
-
-.category-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14rpx;
-}
-
-.cat-option {
-  padding: 14rpx 24rpx;
-  border-radius: 30rpx;
+.cat-scroll .cat-option {
+  display: inline-block;
+  padding: 6rpx 14rpx;
+  margin-right: 8rpx;
+  border-radius: 20rpx;
   background: #f5f5f5;
   color: #666;
-  font-size: 25rpx;
+  font-size: 22rpx;
   border: 2rpx solid transparent;
-  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .cat-option:active {
@@ -162,5 +122,18 @@
   color: #07c160;
   border-color: #07c160;
   font-weight: bold;
-  box-shadow: 0 2rpx 8rpx rgba(7, 193, 96, 0.15);
+}
+
+/* 提交按钮 */
+.submit-btn {
+  background: linear-gradient(135deg, #07c160, #06ad56) !important;
+  color: #fff !important;
+  height: 60rpx !important;
+  line-height: 60rpx !important;
+  border-radius: 30rpx !important;
+  font-size: 26rpx !important;
+  margin-top: 8rpx !important;
+  font-weight: 600 !important;
+  border: none !important;
+  box-shadow: 0 3rpx 12rpx rgba(7, 193, 96, 0.3) !important;
 }
