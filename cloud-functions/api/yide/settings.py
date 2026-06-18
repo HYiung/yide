@@ -39,7 +39,7 @@ ALLOWED_HOSTS = [
     '.pages.dev',               # EdgeOne Pages 新域名
     '.edgeone.cool',            # EdgeOne Pages 域名
     '.edgeone.dev',             # EdgeOne Pages dev 域名
-    'dpdns.org',                # 自定义域名
+    '.dpdns.org',               # 自定义域名（含前导点，匹配子域名）
     'localhost',
     '192.168.1.138',
 ]
