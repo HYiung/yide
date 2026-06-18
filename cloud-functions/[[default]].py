@@ -1,47 +1,93 @@
 """
-EdgeOne Pages Catch-All WSGI 入口
-
-[[default]].py 是 EdgeOne 的 catch-all 路由模式，
-匹配 cloud-functions/ 根目录下的所有路径（/*）。
-所有 HTTP 请求都会经过 Django WSGI application 做内部路由。
-
-⚠️ 注意：不要 import yide.wsgi，否则会引起 Django populate() reentrancy。
-只有此文件调用 get_wsgi_application()。
+EdgeOne Pages Catch-All 入口（Handler 模式）
 """
-import os
-import sys
-import traceback
+import io, os, sys, traceback
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse
 
-# 将 Django 项目目录 api/ 加入 Python 路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
 api_dir = os.path.join(current_dir, 'api')
 if api_dir not in sys.path:
     sys.path.insert(0, api_dir)
-
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'yide.settings')
 
-# ========== 尝试加载 Django（带 fallback 诊断） ==========
-_django_ok = False
-_django_error = None
+_django_app = None
+_init_error = None
 
-try:
-    from django.core.wsgi import get_wsgi_application
-    # ⚠️ 保持下面这行作为 EdgeOne WSGI 检测标记，不要改成别的变量名
-    application = get_wsgi_application()
-    _django_ok = True
-except Exception as e:
-    _django_error = traceback.format_exc()
-    print(f"Django init error: {_django_error}", flush=True)
-    # 定义 fallback 应用返回诊断信息
-    def application(environ, start_response):
-        status = '500 Internal Server Error'
-        headers = [('Content-Type', 'text/plain; charset=utf-8')]
-        start_response(status, headers)
-        body = (
-            f"ERROR: Django failed to initialize\n\n"
-            f"{_django_error}\n\n"
-            f"PYTHONPATH: {sys.path[:5]}\n"
-            f"PYTHON VERSION: {sys.version}\n"
-            f"ENV KEYS: {[k for k in os.environ.keys() if not k.startswith('_')]}\n"
-        )
-        return [body.encode('utf-8')]
+def _init_django():
+    global _django_app, _init_error
+    if _django_app is not None or _init_error is not None:
+        return
+    try:
+        import django
+        django.setup()
+        from django.core.handlers.wsgi import WSGIHandler
+        _django_app = WSGIHandler()
+        print("Django initialized successfully", flush=True)
+    except Exception as e:
+        _init_error = traceback.format_exc()
+        print(f"Django init error: {_init_error}", flush=True)
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self): self._handle_request()
+    def do_POST(self): self._handle_request()
+    def do_PUT(self): self._handle_request()
+    def do_DELETE(self): self._handle_request()
+
+    def _handle_request(self):
+        _init_django()
+        if _init_error:
+            self.send_response(500)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            body = f"ERROR: Django init failed\n\n{_init_error}\nPYTHONPATH: {sys.path[:5]}\n"
+            self.wfile.write(body.encode())
+            return
+        if _django_app is None:
+            self.send_response(503)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(b"Django initializing...\n")
+            return
+
+        parsed = urlparse(self.path)
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length) if content_length > 0 else b''
+        environ = {
+            'REQUEST_METHOD': self.command, 'SCRIPT_NAME': '',
+            'PATH_INFO': parsed.path, 'QUERY_STRING': parsed.query,
+            'CONTENT_TYPE': self.headers.get('Content-Type', ''),
+            'CONTENT_LENGTH': str(content_length),
+            'SERVER_NAME': self.headers.get('Host', 'localhost'),
+            'SERVER_PORT': '443', 'SERVER_PROTOCOL': self.request_version,
+            'wsgi.version': (1,0), 'wsgi.url_scheme': 'https',
+            'wsgi.input': io.BytesIO(body), 'wsgi.errors': sys.stderr,
+            'wsgi.multithread': True, 'wsgi.multiprocess': False, 'wsgi.run_once': False,
+        }
+        for k,v in self.headers.items():
+            environ['HTTP_'+k.upper().replace('-','_')] = v
+
+        status = None; resp_hdrs = []
+        def start_response(s, h, exc_info=None):
+            nonlocal status, resp_hdrs; status = s; resp_hdrs = h
+
+        try:
+            result = _django_app(environ, start_response)
+            if status:
+                self.send_response(int(status.split()[0]))
+                for n,v in resp_hdrs:
+                    if n.lower() not in ('transfer-encoding','connection','keep-alive','upgrade'):
+                        self.send_header(n,v)
+                self.end_headers()
+                for chunk in result:
+                    self.wfile.write(chunk if isinstance(chunk, bytes) else chunk.encode())
+            else:
+                self.send_response(500); self.end_headers()
+                self.wfile.write(b"Django no response")
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-Type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(f"Django error: {e}\n{traceback.format_exc()}".encode())
+        finally:
+            if hasattr(result, 'close'): result.close()
