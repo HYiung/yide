@@ -25,6 +25,12 @@
       "version": "3.10",
       "requirements": "cloud-functions/api/requirements.txt"
     },
+    "exclude": [
+      ".venv",
+      ".venv/",
+      "venv",
+      "__pycache__"
+    ],
     "commands": [
       "python cloud-functions/api/manage.py collectstatic --noinput",
       "python cloud-functions/api/manage.py migrate --noinput"
