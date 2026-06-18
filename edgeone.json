@@ -3,8 +3,12 @@
     "name": "yide-bookstore",
     "type": "pages"
   },
+  "server": {
+    "handler": "cloud-functions/api/index.application",
+    "runtime": "python"
+  },
   "functions": {
-    "cloud": [
+    "origin": [
       {
         "path": "/*",
         "runtime": "python",
