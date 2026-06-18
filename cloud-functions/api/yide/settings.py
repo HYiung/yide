@@ -42,6 +42,7 @@ ALLOWED_HOSTS = [
     '.dpdns.org',
     'localhost',
     '192.168.1.138',
+    'yide.dpdns.org',
 ]
 
 WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
