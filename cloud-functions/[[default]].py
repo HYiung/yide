@@ -1,14 +1,17 @@
 """
 EdgeOne Pages Catch-All WSGI 入口
+
 [[default]].py 是 EdgeOne 的 catch-all 路由模式，
-所有 HTTP 请求（/、/admin、/api/* 等）都会先进这个文件，
-然后交给 Django 的 WSGI application 做内部路由。
+匹配 cloud-functions/ 根目录下的所有路径（/*）。
+所有 HTTP 请求都会经过 Django WSGI application 做内部路由。
+
+⚠️ 注意：不要 import yide.wsgi，否则会引起 Django populate() reentrancy。
+只有此文件调用 get_wsgi_application()。
 """
 import os
 import sys
 
 # 将 Django 项目目录 api/ 加入 Python 路径
-# 这样 Python 才能找到 yide.settings、yide.urls 等模块
 current_dir = os.path.dirname(os.path.abspath(__file__))
 api_dir = os.path.join(current_dir, 'api')
 if api_dir not in sys.path:
@@ -16,8 +19,16 @@ if api_dir not in sys.path:
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'yide.settings')
 
-# 导入 yide.wsgi 触发云端自动迁移（migrate + 创建管理员）
-import yide.wsgi
-
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
+
+# ========== 冷启动自动迁移 ==========
+import django
+from django.core.management import call_command
+try:
+    call_command('migrate', interactive=False, run_syncdb=True)
+    from django.contrib.auth.models import User
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser('admin', 'admin@example.com', 'Admin123456')
+except Exception as e:
+    print(f"Auto-migration skipped: {e}")
