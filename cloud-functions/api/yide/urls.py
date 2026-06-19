@@ -8,6 +8,7 @@ urlpatterns = [
 ]
 
 # EdgeOne 上静态文件通过 WSGI 管道 serve（DEBUG=False，需要显式路由）
+# 注意：EdgeOne 会拦截 /static/ 前缀导致 SCF 崩溃，故使用 /assets/
 urlpatterns += [
-    re_path(r'^static/(?P<path>.*)$', static_serve),
+    re_path(r'^assets/(?P<path>.*)$', static_serve),
 ]

@@ -190,55 +190,7 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write('\n'.join(lines).encode())
             return
 
-        # === 静态文件服务：让 Django WSGI 处理（staticfiles 的 serve view） ===
-        parsed = urlparse(self.path)
-        if parsed.path.startswith('/static/'):
-            try:
-                # 复用 WSGI 管道让 Django 处理 /static/ 路径
-                content_length = int(self.headers.get('Content-Length', 0))
-                body = self.rfile.read(content_length) if content_length > 0 else b''
-
-                real_host = self.headers.get('Eo-Pages-Host') or self.headers.get('Host', 'localhost')
-
-                environ = {
-                    'REQUEST_METHOD': self.command, 'SCRIPT_NAME': '',
-                    'PATH_INFO': parsed.path, 'QUERY_STRING': parsed.query,
-                    'CONTENT_TYPE': self.headers.get('Content-Type', ''),
-                    'CONTENT_LENGTH': str(content_length),
-                    'SERVER_NAME': real_host,
-                    'SERVER_PORT': '443', 'SERVER_PROTOCOL': self.request_version,
-                    'wsgi.version': (1,0), 'wsgi.url_scheme': 'https',
-                    'wsgi.input': io.BytesIO(body), 'wsgi.errors': sys.stderr,
-                    'wsgi.multithread': True, 'wsgi.multiprocess': False, 'wsgi.run_once': False,
-                }
-                for k,v in self.headers.items():
-                    environ['HTTP_'+k.upper().replace('-','_')] = v
-                environ['HTTP_HOST'] = real_host
-
-                status = None; resp_hdrs = []
-                def start_response(s, h, exc_info=None):
-                    nonlocal status, resp_hdrs; status = s; resp_hdrs = h
-
-                result = _django_app(environ, start_response)
-                if status:
-                    self.send_response(int(status.split()[0]))
-                    for n,v in resp_hdrs:
-                        if n.lower() not in ('transfer-encoding','connection','keep-alive','upgrade'):
-                            self.send_header(n,v)
-                    self.end_headers()
-                    for chunk in result:
-                        self.wfile.write(chunk if isinstance(chunk, bytes) else chunk.encode())
-                else:
-                    self.send_response(500); self.end_headers()
-                    self.wfile.write(b"Django no response for static file")
-                if hasattr(result, 'close'): result.close()
-            except Exception as e:
-                self.send_response(500)
-                self.send_header('Content-Type', 'text/plain; charset=utf-8')
-                self.end_headers()
-                err_body = f'Static file WSGI error: {e}\n{traceback.format_exc()}'.encode('utf-8')
-                self.wfile.write(err_body)
-            return
+        # === 全部请求由 Django WSGI 处理（包括 /assets/ 静态文件路由） ===
 
         if _init_error:
             self.send_response(500)
