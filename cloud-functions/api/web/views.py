@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 import requests
 from django.conf import settings
 from django.db import transaction
-from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
+from django.db.models import DecimalField, ExpressionWrapper, F, Max, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -107,8 +107,16 @@ CASHIER_HTML = """<!DOCTYPE html>
   .stat-card {
     flex: 1; min-width: 160px; background: #fff; border-radius: 12px;
     padding: 18px 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-    display: flex; align-items: center; gap: 14px;
+    display: flex; align-items: center; gap: 14px; cursor: pointer;
+    transition: all 0.2s; position: relative;
   }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+  .stat-card:active { transform: scale(0.98); }
+  .stat-card .click-hint {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; color: #ccc; opacity: 0; transition: opacity 0.2s;
+  }
+  .stat-card:hover .click-hint { opacity: 1; }
   .stat-icon {
     width: 44px; height: 44px; border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
@@ -225,6 +233,48 @@ CASHIER_HTML = """<!DOCTYPE html>
   .empty-state {
     color: #ccc; text-align: center; padding: 30px 0; font-size: 14px;
   }
+  /* ===== Modal ===== */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.45); z-index: 9999;
+    justify-content: center; align-items: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 16px; width: 92%; max-width: 560px;
+    max-height: 80vh; display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 24px; border-bottom: 1px solid #f0f0f0;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; color: #333; }
+  .modal-close {
+    width: 32px; height: 32px; border-radius: 50%; background: #f5f5f5;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; color: #999; transition: all 0.2s;
+  }
+  .modal-close:hover { background: #e8e8e8; color: #333; }
+  .modal-body { padding: 20px 24px; overflow-y: auto; min-height: 100px; }
+  .modal-loading { text-align: center; color: #ccc; padding: 30px 0; }
+  .modal-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .modal-table th {
+    text-align: left; padding: 8px 0; color: #999; font-weight: 600;
+    border-bottom: 2px solid #f0f0f0; font-size: 12px;
+  }
+  .modal-table td { padding: 10px 0; border-bottom: 1px solid #f5f5f5; }
+  .modal-table tr:last-child td { border-bottom: none; }
+  .modal-table .num { font-weight: 700; }
+  .modal-table .money { color: #f5222d; font-weight: 700; }
+  .modal-table .time { color: #bbb; font-size: 12px; }
+  .modal-empty { text-align: center; color: #ccc; padding: 30px 0; font-size: 14px; }
+  .modal-footer {
+    display: flex; justify-content: space-between; padding: 14px 0 0;
+    border-top: 1px solid #f0f0f0; font-weight: 700; font-size: 15px;
+  }
   @media (max-width: 900px) {
     .main-content { grid-template-columns: 1fr; padding: 0 16px 16px; }
     .dashboard-section { grid-column: 1; }
@@ -246,6 +296,7 @@ CASHIER_HTML = """<!DOCTYPE html>
       <div class="stat-label">今日营收</div>
       <div class="stat-value green" id="s-today-revenue">￥0.00</div>
     </div>
+    <span class="click-hint">详情 ▸</span>
   </div>
   <div class="stat-card">
     <div class="stat-icon orange">📦</div>
@@ -253,6 +304,7 @@ CASHIER_HTML = """<!DOCTYPE html>
       <div class="stat-label">今日销量</div>
       <div class="stat-value orange" id="s-today-count">0 件</div>
     </div>
+    <span class="click-hint">详情 ▸</span>
   </div>
   <div class="stat-card">
     <div class="stat-icon red">📋</div>
@@ -260,6 +312,7 @@ CASHIER_HTML = """<!DOCTYPE html>
       <div class="stat-label">待取货</div>
       <div class="stat-value red" id="s-pending">-</div>
     </div>
+    <span class="click-hint">详情 ▸</span>
   </div>
   <div class="stat-card">
     <div class="stat-icon blue">⚠️</div>
@@ -267,6 +320,7 @@ CASHIER_HTML = """<!DOCTYPE html>
       <div class="stat-label">低库存</div>
       <div class="stat-value blue" id="s-lowstock">-</div>
     </div>
+    <span class="click-hint">详情 ▸</span>
   </div>
 </div>
 <div class="main-content">
@@ -322,14 +376,11 @@ var pPrice = document.getElementById('p-price');
 var logArea = document.getElementById('logArea');
 var emptyLog = document.getElementById('emptyLog');
 
+/* ==== Speech: prewarm + delay fix for Chrome Chinese first-char loss ==== */
+(function () { if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); var _w = new SpeechSynthesisUtterance(' '); window.speechSynthesis.speak(_w); } })();
 function speakText(text) {
   window.speechSynthesis.cancel();
-  var w = new SpeechSynthesisUtterance(' '); w.volume = 0;
-  w.onend = function () {
-    var u = new SpeechSynthesisUtterance(text); u.rate = 1.0;
-    window.speechSynthesis.speak(u);
-  };
-  window.speechSynthesis.speak(w);
+  setTimeout(function () { var u = new SpeechSynthesisUtterance(text); u.rate = 1.0; window.speechSynthesis.speak(u); }, 30);
 }
 
 function toggleMode() {
@@ -467,11 +518,111 @@ input.addEventListener('keyup', function (e) {
   processBarcode(code);
 });
 
+/* ===== Modal Functions ===== */
+function openModal(title) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = '<div class="modal-loading">\u52a0\u8f7d\u4e2d...</div>';
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+/* Today Revenue Detail */
+function showTodayDetail() {
+  openModal('\ud83d\udcb0 \u4eca\u65e5\u9500\u552e\u660e\u7ec6');
+  fetchJSON('/api/today_detail/').then(function (d) {
+    if (!d.grouped || !d.grouped.length) {
+      document.getElementById('modalBody').innerHTML = '<div class="modal-empty">\u4eca\u65e5\u6682\u65e0\u9500\u552e\u8bb0\u5f55</div>';
+      return;
+    }
+    var html = '<table class="modal-table"><tr><th>\u5546\u54c1</th><th style="text-align:center">\u6570\u91cf</th><th style="text-align:right">\u5c0f\u8ba1</th><th style="text-align:right">\u65f6\u95f4</th></tr>';
+    d.grouped.forEach(function (g) {
+      html += '<tr><td>' + g.name + '</td><td class="num" style="text-align:center">\u00d7' + g.qty + '</td><td class="money" style="text-align:right">\uffe5' + g.amount.toFixed(2) + '</td><td class="time" style="text-align:right">' + g.last_time + '</td></tr>';
+    });
+    html += '</table>';
+    html += '<div class="modal-footer"><span>\u5408\u8ba1 ' + d.total_count + ' \u4ef6</span><span style="color:#f5222d">\uffe5' + d.total_revenue.toFixed(2) + '</span></div>';
+    document.getElementById('modalBody').innerHTML = html;
+  }).catch(function () {
+    document.getElementById('modalBody').innerHTML = '<div class="modal-empty">\u52a0\u8f7d\u5931\u8d25</div>';
+  });
+}
+
+/* Pending Orders Detail */
+function showPendingOrders() {
+  openModal('\ud83d\udccb \u5f85\u53d6\u8d27\u8ba2\u5355');
+  fetchJSON('/api/pending_orders/').then(function (d) {
+    if (!d.list || !d.list.length) {
+      document.getElementById('modalBody').innerHTML = '<div class="modal-empty">\u2705 \u6682\u65e0\u5f85\u53d6\u8d27\u8ba2\u5355</div>';
+      return;
+    }
+    var html = '';
+    d.list.forEach(function (o) {
+      html += '<div style="margin-bottom:16px;padding:12px;background:#fafafa;border-radius:8px;">';
+      html += '<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;"><span>#' + o.order_sn.slice(-8) + '</span><span style="color:#fa8c16">\u5f85\u53d6\u8d27</span></div>';
+      html += '<div style="margin:4px 0;font-size:13px;color:#666;">\u53d6\u8d27\u4eba: ' + o.customer_name + '</div>';
+      html += '<div style="font-size:12px;color:#999;margin-bottom:4px;">\u5546\u54c1:</div>';
+      o.items.forEach(function (item) {
+        html += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span>' + item.name + ' \u00d7' + item.count + '</span><span style="color:#f5222d">\uffe5' + (parseFloat(item.price) * item.count).toFixed(2) + '</span></div>';
+      });
+      html += '<div style="text-align:right;font-weight:700;font-size:13px;margin-top:4px;padding-top:4px;border-top:1px solid #eee;">\u5408\u8ba1: \uffe5' + o.total_price + '</div>';
+      html += '</div>';
+    });
+    document.getElementById('modalBody').innerHTML = html;
+  }).catch(function () {
+    document.getElementById('modalBody').innerHTML = '<div class="modal-empty">\u52a0\u8f7d\u5931\u8d25</div>';
+  });
+}
+
+/* Low Stock Detail */
+function showLowStock() {
+  openModal('\u26a0\ufe0f \u4f4e\u5e93\u5b58\u5546\u54c1');
+  fetchJSON('/api/low_stock_products/?threshold=5&limit=100').then(function (d) {
+    if (!d.list || !d.list.length) {
+      document.getElementById('modalBody').innerHTML = '<div class="modal-empty">\u2705 \u5e93\u5b58\u5145\u8db3</div>';
+      return;
+    }
+    var html = '<table class="modal-table"><tr><th>\u5546\u54c1</th><th style="text-align:right">\u5e93\u5b58</th><th style="text-align:right">\u4ef7\u683c</th></tr>';
+    d.list.forEach(function (p) {
+      var color = p.stock <= 0 ? '#f5222d' : p.stock <= 3 ? '#fa8c16' : '#52c41a';
+      html += '<tr><td>' + p.name + '</td><td style="text-align:right;color:' + color + ';font-weight:700;">' + p.stock + '</td><td class="money" style="text-align:right">\uffe5' + p.price + '</td></tr>';
+    });
+    html += '</table>';
+    html += '<div class="modal-footer"><span>\u5171 ' + d.total_count + ' \u4e2a\u5546\u54c1\u4f4e\u5e93\u5b58</span></div>';
+    document.getElementById('modalBody').innerHTML = html;
+  }).catch(function () {
+    document.getElementById('modalBody').innerHTML = '<div class="modal-empty">\u52a0\u8f7d\u5931\u8d25</div>';
+  });
+}
+
+/* Bind stat card clicks */
+(function () {
+  var cards = document.querySelectorAll('.stat-card');
+  if (cards.length >= 1) cards[0].onclick = showTodayDetail;
+  if (cards.length >= 2) cards[1].onclick = showTodayDetail;
+  if (cards.length >= 3) cards[2].onclick = showPendingOrders;
+  if (cards.length >= 4) cards[3].onclick = showLowStock;
+})();
+
 updateStats();
 loadDashboard();
 setInterval(updateStats, 5000);
 setInterval(loadDashboard, 30000);
 </script>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal-box" id="modalBox">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">详情</span>
+      <span class="modal-close" onclick="closeModal()">✕</span>
+    </div>
+    <div class="modal-body" id="modalBody"><div class="modal-loading">加载中...</div></div>
+  </div>
+</div>
+
 </body>
 </html>"""
 
@@ -1138,6 +1289,50 @@ def dashboard_stats(request):
         'category_distribution': cat_counts,
         'low_stock': low_stock,
         'pending_orders': pending_orders,
+    })
+
+
+# 今日销售明细（点卡片弹窗用）
+def today_detail(request):
+    now = timezone.now()
+    today = now.date()
+
+    # 按商品分组
+    line_total = ExpressionWrapper(
+        F('price') * F('quantity'),
+        output_field=DecimalField(max_digits=12, decimal_places=2)
+    )
+    grouped = (SaleHistory.objects
+        .filter(sale_date__date=today)
+        .values('product_name')
+        .annotate(
+            total_qty=Sum('quantity'),
+            total_amount=Sum(line_total),
+            last_time=models.Max('sale_date')
+        )
+        .order_by('-total_amount'))
+
+    # 原始明细
+    raw = (SaleHistory.objects
+        .filter(sale_date__date=today)
+        .order_by('-sale_date')
+        .values('product_name', 'quantity', 'price', 'sale_date')[:100])
+
+    return JsonResponse({
+        'grouped': [{
+            'name': g['product_name'],
+            'qty': g['total_qty'],
+            'amount': float(g['total_amount']),
+            'last_time': g['last_time'].strftime('%H:%M') if g['last_time'] else ''
+        } for g in grouped],
+        'raw': [{
+            'name': r['product_name'],
+            'qty': r['quantity'],
+            'amount': float(r['price'] * r['quantity']),
+            'time': r['sale_date'].strftime('%H:%M')
+        } for r in raw],
+        'total_count': sum((g['total_qty'] or 0) for g in grouped),
+        'total_revenue': float(sum((g['total_amount'] or 0) for g in grouped)),
     })
 
 

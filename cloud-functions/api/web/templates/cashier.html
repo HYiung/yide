@@ -105,17 +105,11 @@
     const priceDiv = document.getElementById('product-price');
     const logDiv = document.getElementById('log');
 
-    // 语音播报（修复 Chrome 中文首字不读 bug）
+    // 语音播报（修复 Chrome 中文首字丢失 bug）
+    (function () { if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); var _w = new SpeechSynthesisUtterance(' '); window.speechSynthesis.speak(_w); } })();
     function speakText(text) {
         window.speechSynthesis.cancel();
-        const warmup = new SpeechSynthesisUtterance(' ');
-        warmup.volume = 0;
-        warmup.onend = function () {
-            const utter = new SpeechSynthesisUtterance(text);
-            utter.rate = 1.0;
-            window.speechSynthesis.speak(utter);
-        };
-        window.speechSynthesis.speak(warmup);
+        setTimeout(function () { var u = new SpeechSynthesisUtterance(text); u.rate = 1.0; window.speechSynthesis.speak(u); }, 30);
     }
 
     // 1. 自动聚焦输入框
