@@ -6,7 +6,7 @@ const DEV_MODE = false;
 // 新：https://yideshuyuan-pehlausf.edgeone.cool（EdgeOne Pages）
 const BASE_URL = DEV_MODE
   ? 'http://192.168.1.138:8000'
-  : 'https://yideshuyuan-pehlausf.edgeone.cool';
+  : 'https://yide.dpdns.org/';
 
 function buildUrl(path) {
   if (/^https?:\/\//.test(path)) {
