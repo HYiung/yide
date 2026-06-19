@@ -98,7 +98,7 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write('\n'.join(lines).encode())
             return
 
-        # === 手动触发迁移端点 ===
+        # === 手动触发迁移端点（先 makemigrations 再 migrate） ===
         if urlparse(self.path).path == '/__migrate__':
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
@@ -108,10 +108,44 @@ class handler(BaseHTTPRequestHandler):
                 from django.core.management import call_command
                 from io import StringIO
                 out = StringIO()
+                call_command('makemigrations', '--noinput', stdout=out, stderr=out)
+                msgs.append(f"Makemigrations:\n{out.getvalue()}")
+                out = StringIO()
                 call_command('migrate', '--noinput', stdout=out, stderr=out)
-                msgs.append(f"Migration output:\n{out.getvalue()}")
+                msgs.append(f"Migrate:\n{out.getvalue()}")
             except Exception as e:
                 msgs.append(f"Migration error: {e}\n{traceback.format_exc()}")
+            self.wfile.write('\n'.join(msgs).encode())
+            return
+
+        # === 模板渲染测试端点 ===
+        if urlparse(self.path).path == '/__test_view__':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            msgs = []
+            try:
+                # 只检查模板是否能加载
+                from django.template.loader import get_template
+                from django.template import TemplateDoesNotExist
+                try:
+                    tmpl = get_template('cashier.html')
+                    msgs.append(f"Template found: {tmpl.origin.name}")
+                except TemplateDoesNotExist as e:
+                    msgs.append(f"Template NOT FOUND: {e}")
+                    msgs.append("Apps loaded:")
+                    from django.apps import apps
+                    for app_config in apps.get_app_configs():
+                        msgs.append(f"  App '{app_config.label}': path={app_config.path}")
+                # 尝试渲染
+                from django.template import engines
+                engine = engines['django']
+                tmpl = engine.get_template('cashier.html')
+                rendered = tmpl.render({}, request=None)  # 无模板标签，无需 context
+                msgs.append(f"Render OK: {len(rendered)} bytes")
+            except Exception as e:
+                msgs.append(f"Render error: {e}")
+                msgs.append(traceback.format_exc())
             self.wfile.write('\n'.join(msgs).encode())
             return
 
