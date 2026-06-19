@@ -79,7 +79,7 @@ Page({
     this.stopPolling();
     this.timer = setInterval(() => {
       this.refreshDashboard();
-    }, 2000);
+    }, 5000);  // 从 2s 改为 5s，减少请求频率
   },
 
   stopPolling: function () {
@@ -90,6 +90,75 @@ Page({
   },
 
   refreshDashboard: function () {
+    // 使用合并接口，1 个请求替代原来的 5 个，大幅降低延迟
+    api.request({ url: '/api/dashboard_all/' })
+      .then((data) => {
+        if (data.status !== 'success') {
+          // 降级：逐个请求
+          this._fallbackRefresh();
+          return;
+        }
+
+        // 1. 购物车
+        const cart = (data.cart?.items || []).map(item => ({
+          ...item,
+          emoji: this.getEmoji(item.category),
+          subtotal: (parseFloat(item.price) * item.quantity).toFixed(2)
+        }));
+        this.setData({
+          cart: cart,
+          total: data.cart?.total || '0.00'
+        });
+
+        // 2. 今日营收
+        if (data.today_stats) {
+          this.setData({
+            total_amount: (Number(data.today_stats.total_amount) || 0).toFixed(2),
+            today_count: data.today_stats.today_count || 0
+          });
+        }
+
+        // 3. 商城新订单提醒
+        const count = Number(data.new_order?.count || 0);
+        if (count > this.data.lastOrderCount) {
+          wx.vibrateLong();
+          wx.showModal({
+            title: '🎁 商城新订单',
+            content: `收到 ${count} 个新订单，请注意准备货品！`,
+            confirmText: '我知道了',
+            showCancel: false
+          });
+        }
+        this.setData({
+          lastOrderCount: count,
+          lowStockCount: Number(data.new_order?.low_stock_count || 0)
+        });
+
+        // 4. 待取货订单
+        if (data.pending_orders) {
+          this.setData({ pendingOrders: data.pending_orders.list || [] });
+        }
+
+        // 5. 低库存商品
+        if (data.low_stock) {
+          const lowList = (data.low_stock.list || []).map(item => ({
+            ...item,
+            emoji: this.getEmoji(item.category)
+          }));
+          this.setData({
+            lowStockProducts: lowList,
+            lowStockCount: Number(data.low_stock.total_count || 0)
+          });
+        }
+      })
+      .catch((err) => {
+        console.error('综合看板加载失败，降级为逐个请求', err);
+        this._fallbackRefresh();
+      });
+  },
+
+  // 降级方案：分别请求各接口（原 refreshDashboard 逻辑）
+  _fallbackRefresh: function () {
     this.fetchCart();
     this.fetchTodayStats();
     this.checkMallOrders();

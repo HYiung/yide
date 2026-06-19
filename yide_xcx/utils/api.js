@@ -18,11 +18,12 @@ function buildUrl(path) {
 }
 
 function request(options) {
-  const { url, ...rest } = options;
+  const { url, timeout = 10000, ...rest } = options;  // 默认10秒超时
   return new Promise((resolve, reject) => {
     wx.request({
       ...rest,
       url: buildUrl(url),
+      timeout: timeout,
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data || {});
@@ -30,7 +31,10 @@ function request(options) {
           reject(new Error(`服务器返回异常：${res.statusCode}`));
         }
       },
-      fail: reject
+      fail: (err) => {
+        console.error(`请求失败 [${url}]:`, err);
+        reject(err);
+      }
     });
   });
 }

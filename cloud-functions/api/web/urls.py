@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/verify_order/', views.verify_order, name='verify_order'),  # 核销状态为 0 (待取货) 的订单
     path('api/health/', views.health_check, name='health_check'),  # 健康检查
     path('api/dashboard_stats/', views.dashboard_stats, name='dashboard_stats'),  # 仪表盘统计数据
+    path('api/dashboard_all/', views.dashboard_all, name='dashboard_all'),  # 综合看板数据（合并5个请求为1）
     path('api/today_detail/', views.today_detail, name='today_detail'),  # 今日销售明细（弹窗用）
     path('api/auto_categorize/', views.auto_categorize_products, name='auto_categorize'),  # 一键自动分类
     path('api/seed_products/', views.seed_sample_products, name='seed_products'),  # 一键部署示例商品

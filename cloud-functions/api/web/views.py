@@ -17,6 +17,11 @@ from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
 logger = logging.getLogger(__name__)
 
 
+def now_local():
+    """返回 Asia/Shanghai 时区的当前时间（用于兼容 EdgeOne UTC 环境）"""
+    return timezone.localtime(timezone.now())
+
+
 def get_request_int(value, default=0):
     try:
         return int(value)
@@ -345,6 +350,12 @@ CASHIER_HTML = """<!DOCTYPE html>
       <div class="log-area" id="logArea">
         <div class="empty-state" id="emptyLog">暂无记录，扫码后将显示在此处</div>
       </div>
+      <div id="cartSummary" style="display:none;margin-top:12px;padding-top:12px;border-top:2px dashed #e8e8e8;font-size:15px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:#999;">已录入 <strong id="cartCount">0</strong> 件商品</span>
+          <span style="font-weight:800;font-size:20px;color:#f5222d;" id="cartTotal">￥0.00</span>
+        </div>
+      </div>
     </div>
   </div>
   <div class="dashboard-section">
@@ -368,6 +379,8 @@ CASHIER_HTML = """<!DOCTYPE html>
 <script>
 var isCheckOnly = false;
 var scanCart = [];
+var scanTotal = 0.0;
+var scanCount = 0;
 var revenueChart = null, categoryChart = null;
 
 var input = document.getElementById('barcode-input');
@@ -389,8 +402,32 @@ function toggleMode() {
   document.getElementById('modeToggle').classList.toggle('active', isCheckOnly);
 }
 
+function fetchWithTimeout(url, timeoutMs) {
+  var ms = timeoutMs || 8000;
+  return new Promise(function (resolve, reject) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); reject(new Error('timeout')); }, ms);
+    fetch(url, { signal: controller.signal }).then(function (r) {
+      clearTimeout(timer); resolve(r);
+    }).catch(function (e) {
+      clearTimeout(timer); reject(e);
+    });
+  });
+}
+
 function fetchJSON(url) {
-  return fetch(url).then(function (r) { return r.json(); });
+  return fetchWithTimeout(url).then(function (r) { return r.json(); });
+}
+
+function updateCartSummary() {
+  var el = document.getElementById('cartSummary');
+  if (scanCount > 0) {
+    el.style.display = '';
+    document.getElementById('cartCount').textContent = scanCount;
+    document.getElementById('cartTotal').textContent = '￥' + scanTotal.toFixed(2);
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 function updateStats() {
@@ -406,7 +443,7 @@ function updateStats() {
 }
 
 function loadDashboard() {
-  fetchJSON('/api/dashboard_stats/').then(function (d) {
+  fetchJSON('/api/dashboard_stats/').catch(function () { return {}; }).then(function (d) {
     if (revenueChart) revenueChart.destroy();
     var ctx1 = document.getElementById('revenueChart').getContext('2d');
     revenueChart = new Chart(ctx1, {
@@ -461,7 +498,7 @@ function loadDashboard() {
 function processBarcode(code) {
   if (!code) return;
   var url = (isCheckOnly ? '/get_product_by_barcode/?barcode=' : '/add_item/?barcode=') + encodeURIComponent(code);
-  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+  fetchWithTimeout(url).then(function (r) { return r.json(); }).then(function (d) {
     if (d.status === 'success') {
       var tag = isCheckOnly ? '<span class="tag">仅查价</span>' : '<span class="tag">已录入</span>';
       pName.innerHTML = d.name + ' ' + tag;
@@ -474,6 +511,9 @@ function processBarcode(code) {
         var e = document.createElement('div'); e.className = 'log-entry';
         e.innerHTML = '<span class="log-time">' + ts + '</span><span class="log-name">' + d.name + '</span><span class="log-price">￥' + d.price + '</span>';
         logArea.insertBefore(e, logArea.firstChild);
+        scanTotal += parseFloat(d.price);
+        scanCount++;
+        updateCartSummary();
       }
     } else {
       pName.textContent = '❌ ' + (d.msg || '未找到商品'); pPrice.textContent = '-';
@@ -486,7 +526,12 @@ function processBarcode(code) {
 function resetAll() {
   if (!confirm('确定要清空当前账单吗？')) return;
   fetchJSON('/reset_cart/').then(function (d) {
-    if (d.status === 'success') { pName.textContent = '等待扫码...'; pPrice.textContent = '-'; location.reload(); }
+    if (d.status === 'success') {
+      scanTotal = 0; scanCount = 0;
+      pName.textContent = '等待扫码...'; pPrice.textContent = '-';
+      updateCartSummary();
+      location.reload();
+    }
   });
 }
 
@@ -495,12 +540,14 @@ function doCheckout() {
   fetchJSON('/checkout_cart/').then(function (d) {
     if (d.status === 'success') {
       speakText('收款成功');
+      scanTotal = 0; scanCount = 0;
       pName.textContent = '✅ 结账完成'; pPrice.textContent = '-';
+      updateCartSummary();
       updateStats(); loadDashboard();
       setTimeout(function () {
         pName.textContent = '等待扫码...';
         logArea.innerHTML = '<div class="empty-state">账单已结清，扫码开始新订单</div>';
-        emptyLog = document.querySelector('.empty-state');
+        emptyLog = logArea.querySelector('.empty-state');
       }, 3000);
     } else { alert(d.msg); }
   });
@@ -606,8 +653,19 @@ function showLowStock() {
   if (cards.length >= 4) cards[3].onclick = showLowStock;
 })();
 
+function initCartSummary() {
+  fetchWithTimeout('/get_cart_status/').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.items && d.items.length > 0) {
+      scanCount = d.items.reduce(function (s, i) { return s + i.quantity; }, 0);
+      scanTotal = parseFloat(d.total || 0);
+    }
+    updateCartSummary();
+  }).catch(function () {});
+}
+
 updateStats();
 loadDashboard();
+initCartSummary();
 setInterval(updateStats, 5000);
 setInterval(loadDashboard, 30000);
 </script>
@@ -801,8 +859,7 @@ def checkout_cart(request):
 
 # 今日营业额
 def get_today_stats(request):
-    # 使用 Django 提供的 timezone.now()，它会自动处理 settings.py 里的时区
-    now = timezone.now()
+    now = now_local()
     today = now.date()
 
     # 只统计 SaleHistory 即可。
@@ -1222,7 +1279,7 @@ def verify_order(request):
 
 # 仪表盘统计数据（供网页端下方图表使用）
 def dashboard_stats(request):
-    now = timezone.now()
+    now = now_local()
     today = now.date()
     week_ago = today - timedelta(days=6)
 
@@ -1294,7 +1351,7 @@ def dashboard_stats(request):
 
 # 今日销售明细（点卡片弹窗用）
 def today_detail(request):
-    now = timezone.now()
+    now = now_local()
     today = now.date()
 
     # 按商品分组
@@ -1333,6 +1390,77 @@ def today_detail(request):
         } for r in raw],
         'total_count': sum((g['total_qty'] or 0) for g in grouped),
         'total_revenue': float(sum((g['total_amount'] or 0) for g in grouped)),
+    })
+
+
+# 综合看板数据接口（小程序用，合并 5 个请求为 1 个，大幅减少延迟）
+def dashboard_all(request):
+    """一键获取所有看板数据：购物车、今日营收、待取货、低库存"""
+    now = now_local()
+    today = now.date()
+
+    # 1. 购物车状态
+    cart_items = CartItem.objects.select_related('product').all()
+    cart_data = []
+    cart_total = Decimal('0.00')
+    for i in cart_items:
+        cart_data.append({
+            'id': i.product_id,
+            'name': i.product.name,
+            'price': str(i.product.price),
+            'quantity': i.quantity,
+            'remaining_stock': i.product.stock,
+            'category': i.product.category,
+        })
+        cart_total += i.product.price * i.quantity
+
+    # 2. 今日营收
+    line_total = ExpressionWrapper(
+        F('price') * F('quantity'),
+        output_field=DecimalField(max_digits=12, decimal_places=2)
+    )
+    today_stats = SaleHistory.objects.filter(
+        sale_date__date=today
+    ).aggregate(
+        total=Sum(line_total),
+        count=Sum('quantity')
+    )
+
+    # 3. 待取货订单数 & 低库存数
+    pending_count = Order.objects.filter(status=0).count()
+    low_stock_count = Product.objects.filter(stock__lte=5).count()
+
+    # 4. 待取货订单列表（前5条）
+    orders = Order.objects.filter(status=0).prefetch_related('items__product').order_by('create_time')[:5]
+
+    # 5. 低库存商品列表（前5条）
+    low_stock = list(
+        Product.objects.filter(stock__lte=5)
+        .order_by('stock', 'name')[:5]
+        .values('id', 'barcode', 'name', 'stock', 'price', 'category')
+    )
+
+    return JsonResponse({
+        'status': 'success',
+        'cart': {
+            'items': cart_data,
+            'total': str(cart_total),
+        },
+        'today_stats': {
+            'total_amount': round(float(today_stats['total'] or 0), 2),
+            'today_count': int(today_stats['count'] or 0),
+        },
+        'new_order': {
+            'count': pending_count,
+            'low_stock_count': low_stock_count,
+        },
+        'pending_orders': {
+            'list': [serialize_order(o) for o in orders],
+        },
+        'low_stock': {
+            'total_count': low_stock_count,
+            'list': low_stock,
+        },
     })
 
 
