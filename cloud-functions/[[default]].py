@@ -51,6 +51,40 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write('\n'.join(lines).encode())
             return
 
+        # === 追踪端点（诊断 Django 500 错误） ===
+        if urlparse(self.path).path == '/__trace__':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            lines = []
+            try:
+                import django
+                lines.append(f"Django version: {django.get_version()}")
+
+                from django.conf import settings
+                lines.append(f"DEBUG: {settings.DEBUG}")
+                lines.append(f"BASE_DIR: {settings.BASE_DIR}")
+                lines.append(f"ALLOWED_HOSTS: {settings.ALLOWED_HOSTS}")
+                lines.append(f"INSTALLED_APPS: {settings.INSTALLED_APPS}")
+
+                db = settings.DATABASES.get('default', {})
+                lines.append(f"DB engine: {db.get('ENGINE', 'N/A')}")
+                lines.append(f"DB name: {db.get('NAME', 'N/A')}")
+
+                try:
+                    from django.db import connections
+                    connections['default'].ensure_connection()
+                    lines.append("DB connection: OK")
+                except Exception as dberr:
+                    lines.append(f"DB connection: FAILED - {dberr}")
+
+            except Exception as e:
+                lines.append(f"TRACE ERROR: {e}")
+                lines.append(traceback.format_exc())
+
+            self.wfile.write('\n'.join(lines).encode())
+            return
+
         if _init_error:
             self.send_response(500)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
