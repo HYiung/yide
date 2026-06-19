@@ -153,7 +153,11 @@ class handler(BaseHTTPRequestHandler):
         if urlparse(self.path).path.startswith('/static/'):
             try:
                 from django.contrib.staticfiles import finders
-                relative_path = urlparse(self.path).path.lstrip('/')
+                from django.conf import settings
+                static_url = getattr(settings, 'STATIC_URL', '/static/')
+                relative_path = urlparse(self.path).path
+                if relative_path.startswith(static_url):
+                    relative_path = relative_path[len(static_url):]
                 abs_path = finders.find(relative_path)
                 if abs_path:
                     content_type, _ = mimetypes.guess_type(str(abs_path))
