@@ -532,7 +532,7 @@ document.addEventListener('keydown', function (e) { if (e.key === 'Escape') clos
 
 /* Today Revenue Detail */
 function showTodayDetail() {
-  openModal('\ud83d\udcb0 \u4eca\u65e5\u9500\u552e\u660e\u7ec6');
+  openModal('\U0001F4B0 \u4eca\u65e5\u9500\u552e\u660e\u7ec6');
   fetchJSON('/api/today_detail/').then(function (d) {
     if (!d.grouped || !d.grouped.length) {
       document.getElementById('modalBody').innerHTML = '<div class="modal-empty">\u4eca\u65e5\u6682\u65e0\u9500\u552e\u8bb0\u5f55</div>';
@@ -552,7 +552,7 @@ function showTodayDetail() {
 
 /* Pending Orders Detail */
 function showPendingOrders() {
-  openModal('\ud83d\udccb \u5f85\u53d6\u8d27\u8ba2\u5355');
+  openModal('\U0001F4CB \u5f85\u53d6\u8d27\u8ba2\u5355');
   fetchJSON('/api/pending_orders/').then(function (d) {
     if (!d.list || !d.list.length) {
       document.getElementById('modalBody').innerHTML = '<div class="modal-empty">\u2705 \u6682\u65e0\u5f85\u53d6\u8d27\u8ba2\u5355</div>';
@@ -1308,7 +1308,7 @@ def today_detail(request):
         .annotate(
             total_qty=Sum('quantity'),
             total_amount=Sum(line_total),
-            last_time=models.Max('sale_date')
+            last_time=Max('sale_date')
         )
         .order_by('-total_amount'))
 
