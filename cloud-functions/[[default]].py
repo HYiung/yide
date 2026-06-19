@@ -22,17 +22,20 @@ def _init_django():
         # EdgeOne 环境已预初始化 Django，直接获取 WSGI handler
         from django.core.handlers.wsgi import WSGIHandler
         _django_app = WSGIHandler()
-        # Auto-run migrations on EdgeOne cold start (PostgreSQL only)
-        if os.environ.get('CLOUD_DATABASE_URL'):
-            import django
-            django.setup()
-            from django.core.management import call_command
-            call_command('migrate', '--noinput', verbosity=0)
-            print("Migrations completed on startup", flush=True)
         print("Django initialized successfully", flush=True)
     except Exception as e:
         _init_error = traceback.format_exc()
         print(f"Django init error: {_init_error}", flush=True)
+        return
+
+    # 自动迁移（独立 try/except，迁移失败不影响 Django 启动）
+    if os.environ.get('CLOUD_DATABASE_URL'):
+        try:
+            from django.core.management import call_command
+            call_command('migrate', '--noinput', verbosity=0)
+            print("Migrations completed on startup", flush=True)
+        except Exception as e:
+            print(f"Migration error (non-fatal): {e}", flush=True)
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self): self._handle_request()
@@ -90,6 +93,23 @@ class handler(BaseHTTPRequestHandler):
                 lines.append(traceback.format_exc())
 
             self.wfile.write('\n'.join(lines).encode())
+            return
+
+        # === 手动触发迁移端点 ===
+        if urlparse(self.path).path == '/__migrate__':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            msgs = []
+            try:
+                from django.core.management import call_command
+                from io import StringIO
+                out = StringIO()
+                call_command('migrate', '--noinput', stdout=out, stderr=out)
+                msgs.append(f"Migration output:\n{out.getvalue()}")
+            except Exception as e:
+                msgs.append(f"Migration error: {e}\n{traceback.format_exc()}")
+            self.wfile.write('\n'.join(msgs).encode())
             return
 
         if _init_error:
