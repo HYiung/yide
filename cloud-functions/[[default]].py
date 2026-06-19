@@ -35,6 +35,22 @@ class handler(BaseHTTPRequestHandler):
 
     def _handle_request(self):
         _init_django()
+
+        # === 诊断端点 ===
+        if urlparse(self.path).path == '/__diag__':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            lines = [
+                f"METHOD: {self.command}",
+                f"PATH: {self.path}",
+                f"ALL_HOSTS: {_django_app is not None}",
+            ]
+            for k, v in sorted(self.headers.items()):
+                lines.append(f"HEADER {k}: {v}")
+            self.wfile.write('\n'.join(lines).encode())
+            return
+
         if _init_error:
             self.send_response(500)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
