@@ -36,9 +36,9 @@
   </view>
 
   <!-- 提交按钮 -->
-  <button class="submit-btn" bindtap="submitOrder" loading="{{submitting}}" disabled="{{submitting}}">
+  <button class="submit-btn" bindtap="submitOrder" disabled="{{submitting}}">
     <text wx:if="{{!submitting}}">✅ 提交订单</text>
-    <text wx:else>提交中...</text>
+    <text wx:else>⏳ 提交中...</text>
   </button>
 
   <!-- 底部说明 -->

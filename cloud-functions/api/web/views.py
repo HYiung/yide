@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 import requests
@@ -82,210 +83,394 @@ def check_role(request):
 # 页面渲染：显示收银台网页
 # ⚠️ EdgeOne 不会部署 .html 模板文件，所以内联 HTML
 CASHIER_HTML = """<!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>一得书苑收银台</title>
-    <style>
-        .container {
-            text-align: center;
-            margin-top: 50px;
-            font-family: sans-serif;
-        }
-
-        #barcode-input {
-            padding: 10px;
-            width: 300px;
-            font-size: 1.2rem;
-        }
-
-        .display {
-            margin-top: 20px;
-            font-size: 1.5rem;
-            color: #333;
-        }
-
-        #log {
-            margin-top: 30px;
-            color: #666;
-        }
-
-        .action-bar {
-            margin-top: 30px;
-            padding: 20px 0;
-            border-top: 2px dashed #eee;
-            text-align: right;
-        }
-
-        .btn-reset {
-            background-color: #ff4d4f;
-            color: white;
-            border: none;
-            padding: 10px 25px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-left: 50px;
-            box-shadow: 0 4px 6px rgba(255, 77, 79, 0.2);
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-        }
-
-        .btn-icon {
-            margin-right: 8px;
-            font-size: 20px;
-        }
-
-        .today-info {
-            background: #fff5f5;
-            border: 1px solid #ffccc7;
-            padding: 15px;
-            margin-right: 50px;
-            margin-bottom: 20px;
-            border-radius: 10px;
-            display: inline-block;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-
-        #web-today-total {
-            font-family: 'Courier New', Courier, monospace;
-            letter-spacing: 1px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一得书苑 · 收银台 + 看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f0f2f5; color: #333; min-height: 100vh;
+  }
+  .header {
+    background: linear-gradient(135deg, #07c160 0%, #06ad54 100%);
+    padding: 24px 32px; color: #fff; box-shadow: 0 2px 12px rgba(7,193,96,0.3);
+  }
+  .header h1 { font-size: 24px; font-weight: 700; }
+  .header p { font-size: 14px; opacity: 0.85; margin-top: 4px; }
+  .stats-row {
+    display: flex; gap: 16px; padding: 20px 32px; flex-wrap: wrap;
+  }
+  .stat-card {
+    flex: 1; min-width: 160px; background: #fff; border-radius: 12px;
+    padding: 18px 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .stat-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .stat-icon.green { background: #e8f8ee; }
+  .stat-icon.orange { background: #fff3e6; }
+  .stat-icon.red { background: #ffe8e8; }
+  .stat-icon.blue { background: #e8f0fe; }
+  .stat-body .stat-label { font-size: 12px; color: #999; }
+  .stat-body .stat-value {
+    font-size: 22px; font-weight: 800; margin-top: 2px;
+  }
+  .stat-value.green { color: #07c160; }
+  .stat-value.orange { color: #fa8c16; }
+  .stat-value.red { color: #f5222d; }
+  .stat-value.blue { color: #1677ff; }
+  .main-content {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    padding: 0 32px 32px;
+  }
+  .scan-section { grid-column: 1 / 2; }
+  .card {
+    background: #fff; border-radius: 12px; padding: 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.06); margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 16px; font-weight: 700; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .scan-input-row {
+    display: flex; gap: 10px; margin-bottom: 12px;
+  }
+  .scan-input-row input {
+    flex: 1; height: 44px; border: 2px solid #e8e8e8; border-radius: 10px;
+    padding: 0 16px; font-size: 18px; outline: none;
+    transition: border-color 0.2s; letter-spacing: 2px;
+  }
+  .scan-input-row input:focus { border-color: #07c160; }
+  .scan-input-row .mode-btn {
+    height: 44px; padding: 0 18px; border: 2px solid #e8e8e8; border-radius: 10px;
+    background: #fff; font-size: 14px; cursor: pointer; display: flex;
+    align-items: center; gap: 6px; white-space: nowrap;
+    transition: all 0.2s; color: #666; user-select: none;
+  }
+  .scan-input-row .mode-btn.active {
+    border-color: #07c160; background: #e8f8ee; color: #07c160;
+  }
+  .action-btns { display: flex; gap: 10px; margin-bottom: 16px; }
+  .action-btns button {
+    flex: 1; height: 40px; border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; display: flex; align-items: center;
+    justify-content: center; gap: 6px;
+  }
+  .btn-checkout {
+    background: linear-gradient(135deg, #07c160, #06ad54); color: #fff;
+  }
+  .btn-checkout:hover { box-shadow: 0 4px 12px rgba(7,193,96,0.4); }
+  .btn-reset {
+    background: #fff4f4; color: #f5222d; border: 1px solid #ffe0e0 !important;
+  }
+  .btn-reset:hover { background: #ffe8e8; }
+  .product-display {
+    background: #f9fafb; border-radius: 10px; padding: 20px;
+    text-align: center; margin-bottom: 16px;
+    min-height: 100px; display: flex; flex-direction: column;
+    justify-content: center;
+  }
+  .product-display .p-name {
+    font-size: 22px; font-weight: 700; color: #333; margin-bottom: 6px;
+  }
+  .product-display .p-name .tag {
+    font-size: 12px; background: #e8f8ee; color: #07c160;
+    padding: 2px 8px; border-radius: 4px; margin-left: 8px;
+    font-weight: 500; vertical-align: middle;
+  }
+  .product-display .p-price {
+    font-size: 28px; font-weight: 900; color: #f5222d;
+  }
+  .log-area {
+    max-height: 260px; overflow-y: auto; font-size: 13px;
+  }
+  .log-area::-webkit-scrollbar { width: 4px; }
+  .log-area::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+  .log-entry {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid #f5f5f5;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry .log-time { color: #bbb; font-size: 12px; min-width: 70px; }
+  .log-entry .log-name { flex: 1; margin: 0 12px; font-weight: 500; }
+  .log-entry .log-price { color: #f5222d; font-weight: 700; min-width: 60px; text-align: right; }
+  .dashboard-section { grid-column: 2 / 3; display: flex; flex-direction: column; gap: 20px; }
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .chart-card {
+    background: #fff; border-radius: 12px; padding: 20px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  }
+  .chart-card .chart-title {
+    font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #666;
+  }
+  .chart-card canvas { width: 100% !important; height: 180px !important; }
+  .stock-list { list-style: none; }
+  .stock-item {
+    display: flex; justify-content: space-between; padding: 8px 0;
+    border-bottom: 1px solid #f5f5f5; font-size: 13px;
+  }
+  .stock-item:last-child { border-bottom: none; }
+  .stock-item .stock-badge {
+    background: #ffe8e8; color: #f5222d; padding: 2px 8px;
+    border-radius: 10px; font-size: 12px; font-weight: 600;
+  }
+  .empty-state {
+    color: #ccc; text-align: center; padding: 30px 0; font-size: 14px;
+  }
+  @media (max-width: 900px) {
+    .main-content { grid-template-columns: 1fr; padding: 0 16px 16px; }
+    .dashboard-section { grid-column: 1; }
+    .chart-grid { grid-template-columns: 1fr; }
+    .stats-row { padding: 16px; }
+    .header { padding: 16px 20px; }
+  }
+</style>
 </head>
 <body>
-<div class="container">
-    <h1>文具扫码查价</h1>
-    <div class="today-info">
-        今日实时营收：<span id="web-today-total" style="color: #e64340; font-size: 24px; font-weight: bold;">￥0.00</span>
+<div class="header">
+  <h1>📖 一得书苑 · 收银台</h1>
+  <p id="header-sub">扫码录入 · 一键收银 · 实时看板</p>
+</div>
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-icon green">💰</div>
+    <div class="stat-body">
+      <div class="stat-label">今日营收</div>
+      <div class="stat-value green" id="s-today-revenue">￥0.00</div>
     </div>
-    <input type="text" id="barcode-input" autofocus placeholder="请扫码商品条码...">
-    <button class="btn-reset" onclick="resetAll()">
-        <span class="btn-icon">🗑️</span>清空重置(不扣库存)
-    </button>
-    <div class="mode-switch">
-        <label>
-            <input type="checkbox" id="checkOnly"> 🔍 仅查价（不计入账单）
-        </label>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon orange">📦</div>
+    <div class="stat-body">
+      <div class="stat-label">今日销量</div>
+      <div class="stat-value orange" id="s-today-count">0 件</div>
     </div>
-    <div class="display">
-        <div id="product-name">商品：等待扫码...</div>
-        <div id="product-price">价格：-</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon red">📋</div>
+    <div class="stat-body">
+      <div class="stat-label">待取货</div>
+      <div class="stat-value red" id="s-pending">-</div>
     </div>
-
-    <div id="log">扫码历史记录...</div>
-    <div class="action-bar">
-
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon blue">⚠️</div>
+    <div class="stat-body">
+      <div class="stat-label">低库存</div>
+      <div class="stat-value blue" id="s-lowstock">-</div>
     </div>
+  </div>
+</div>
+<div class="main-content">
+  <div class="scan-section">
+    <div class="card">
+      <div class="card-title">🔍 扫码查价 / 录入</div>
+      <div class="scan-input-row">
+        <input type="text" id="barcode-input" autofocus placeholder="请扫码商品条码..." />
+        <div class="mode-btn" id="modeToggle" onclick="toggleMode()">🔍 查价</div>
+      </div>
+      <div class="product-display" id="productDisplay">
+        <div class="p-name" id="p-name">等待扫码...</div>
+        <div class="p-price" id="p-price">-</div>
+      </div>
+      <div class="action-btns">
+        <button class="btn-checkout" onclick="doCheckout()">💳 结账</button>
+        <button class="btn-reset" onclick="resetAll()">🗑️ 清空</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📜 扫码记录</div>
+      <div class="log-area" id="logArea">
+        <div class="empty-state" id="emptyLog">暂无记录，扫码后将显示在此处</div>
+      </div>
+    </div>
+  </div>
+  <div class="dashboard-section">
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-title">📈 近 7 日营收趋势</div>
+        <canvas id="revenueChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🧩 商品分类分布</div>
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📦 低库存提醒</div>
+      <div id="stockList"><div class="empty-state">暂无低库存商品</div></div>
+    </div>
+  </div>
 </div>
 
 <script>
-    const input = document.getElementById('barcode-input');
-    const nameDiv = document.getElementById('product-name');
-    const priceDiv = document.getElementById('product-price');
-    const logDiv = document.getElementById('log');
+var isCheckOnly = false;
+var scanCart = [];
+var revenueChart = null, categoryChart = null;
 
-    setInterval(() => {
-        if (document.activeElement !== input) input.focus();
-    }, 1000);
+var input = document.getElementById('barcode-input');
+var pName = document.getElementById('p-name');
+var pPrice = document.getElementById('p-price');
+var logArea = document.getElementById('logArea');
+var emptyLog = document.getElementById('emptyLog');
 
-    function updateWebStats() {
-        fetch('/get_today_stats/')
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    const total = parseFloat(data.total_amount) || 0;
-                    document.getElementById('web-today-total').innerText = "￥" + total.toFixed(2);
-                }
-            })
-            .catch(err => console.error("营收更新失败:", err));
-    }
+function speakText(text) {
+  window.speechSynthesis.cancel();
+  var w = new SpeechSynthesisUtterance(' '); w.volume = 0;
+  w.onend = function () {
+    var u = new SpeechSynthesisUtterance(text); u.rate = 1.0;
+    window.speechSynthesis.speak(u);
+  };
+  window.speechSynthesis.speak(w);
+}
 
-    updateWebStats();
-    setInterval(updateWebStats, 2000);
+function toggleMode() {
+  isCheckOnly = !isCheckOnly;
+  document.getElementById('modeToggle').textContent = isCheckOnly ? '🔍 查价中' : '🔍 查价';
+  document.getElementById('modeToggle').classList.toggle('active', isCheckOnly);
+}
 
-    function resetAll() {
-        if (confirm("确定要清空当前账单吗？(此操作不扣库存，仅用于扫错重来)")) {
-            fetch('/reset_cart/')
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'success') location.reload();
-                });
-        }
-    }
+function fetchJSON(url) {
+  return fetch(url).then(function (r) { return r.json(); });
+}
 
-    function handlePayment(payCode) {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance("扫码成功，正在处理结账"));
+function updateStats() {
+  fetchJSON('/get_today_stats/').then(function (d) {
+    if (d.status !== 'success') return;
+    document.getElementById('s-today-revenue').textContent = '￥' + parseFloat(d.total_amount || 0).toFixed(2);
+    document.getElementById('s-today-count').textContent = (d.today_count || 0) + ' 件';
+  }).catch(function () {});
+  fetchJSON('/api/get_new_order_count/').then(function (d) {
+    document.getElementById('s-pending').textContent = (d.count || 0) + ' 单';
+    document.getElementById('s-lowstock').textContent = (d.low_stock_count || 0) + ' 个';
+  }).catch(function () {});
+}
 
-        fetch('/checkout_cart/')
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    window.speechSynthesis.speak(new SpeechSynthesisUtterance("收款成功，今日营业额已更新"));
-                    nameDiv.innerText = "✅ 结账完成";
-                    priceDiv.innerText = "支付码：" + payCode.substring(0, 4) + "****" + payCode.substring(14);
-                    updateWebStats();
-                    setTimeout(() => {
-                        nameDiv.innerText = "等待扫码...";
-                        priceDiv.innerText = "-";
-                        logDiv.innerHTML = "账单已结清，扫码开始新订单...";
-                    }, 3000);
-                } else {
-                    alert(data.msg);
-                }
-            });
-    }
-
-    input.addEventListener('keyup', function (e) {
-        if (e.key === 'Enter') {
-            const code = input.value.trim();
-            if (!code) return;
-
-            const isPayCode = /^\d{18}$/.test(code) && (code.startsWith('13') || code.startsWith('28'));
-
-            if (isPayCode) {
-                handlePayment(code);
-                input.value = '';
-                return;
-            }
-
-            const isCheckOnly = document.getElementById('checkOnly').checked;
-            const apiUrl = isCheckOnly ? '/get_product_by_barcode/?barcode=' + code : '/add_item/?barcode=' + code;
-
-            fetch(apiUrl)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        const modeText = isCheckOnly ? "【仅查价】" : "当前录入：";
-                        nameDiv.innerText = modeText + data.name;
-                        priceDiv.innerText = "单价：￥" + data.price;
-
-                        let voiceMsg = data.name + "，" + data.price + "元";
-                        if (isCheckOnly) voiceMsg = "注意，查价模式：" + voiceMsg;
-
-                        window.speechSynthesis.cancel();
-                        window.speechSynthesis.speak(new SpeechSynthesisUtterance(voiceMsg));
-
-                        if (!isCheckOnly) {
-                            const newLog = document.createElement('p');
-                            newLog.innerText = new Date().toLocaleTimeString() + ' - ' + data.name + ' (￥' + data.price + ')';
-                            logDiv.prepend(newLog);
-                        }
-                    } else {
-                        window.speechSynthesis.cancel();
-                        window.speechSynthesis.speak(new SpeechSynthesisUtterance("没找到商品"));
-                        nameDiv.innerText = "状态：未找到该商品";
-                    }
-                    input.value = '';
-                })
-                .catch(err => {
-                    alert("连接失败，请确认后端已开启 get_today_stats 接口");
-                    input.value = '';
-                });
-        }
+function loadDashboard() {
+  fetchJSON('/api/dashboard_stats/').then(function (d) {
+    if (revenueChart) revenueChart.destroy();
+    var ctx1 = document.getElementById('revenueChart').getContext('2d');
+    revenueChart = new Chart(ctx1, {
+      type: 'line',
+      data: {
+        labels: (d.daily_revenue || []).map(function (r) { return r.date; }),
+        datasets: [{
+          label: '营收',
+          data: (d.daily_revenue || []).map(function (r) { return r.total; }),
+          borderColor: '#07c160',
+          backgroundColor: 'rgba(7,193,96,0.08)',
+          fill: true, tension: 0.4,
+          pointRadius: 4, pointBackgroundColor: '#07c160', borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false } } }
+      }
     });
+    if (categoryChart) categoryChart.destroy();
+    var cats = d.category_distribution || {};
+    var catLabels = Object.keys(cats);
+    var catValues = catLabels.map(function (k) { return cats[k]; });
+    var catColors = ['#07c160','#1677ff','#fa8c16','#f5222d','#722ed1','#13c2c2','#eb2f96'];
+    var ctx2 = document.getElementById('categoryChart').getContext('2d');
+    categoryChart = new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: catLabels.length ? catLabels : ['暂无数据'],
+        datasets: [{ data: catValues.length ? catValues : [1], backgroundColor: catColors.slice(0, Math.max(catLabels.length,1)), borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } } },
+        cutout: '60%'
+      }
+    });
+    var stockEl = document.getElementById('stockList');
+    var lowStock = d.low_stock || [];
+    if (!lowStock.length) {
+      stockEl.innerHTML = '<div class="empty-state">✅ 库存充足</div>';
+    } else {
+      stockEl.innerHTML = '<ul class="stock-list">' + lowStock.map(function (p) {
+        return '<li class="stock-item"><span>' + p.name + '</span><span class="stock-badge">库存 ' + p.stock + '</span></li>';
+      }).join('') + '</ul>';
+    }
+  }).catch(function () {});
+}
+
+function processBarcode(code) {
+  if (!code) return;
+  var url = (isCheckOnly ? '/get_product_by_barcode/?barcode=' : '/add_item/?barcode=') + encodeURIComponent(code);
+  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.status === 'success') {
+      var tag = isCheckOnly ? '<span class="tag">仅查价</span>' : '<span class="tag">已录入</span>';
+      pName.innerHTML = d.name + ' ' + tag;
+      pPrice.textContent = '￥' + d.price;
+      speakText(d.name + '，' + d.price + '元');
+      if (!isCheckOnly) {
+        var el = emptyLog; if (el && el.parentNode) el.parentNode.removeChild(el);
+        var t = new Date();
+        var ts = t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0') + ':' + t.getSeconds().toString().padStart(2,'0');
+        var e = document.createElement('div'); e.className = 'log-entry';
+        e.innerHTML = '<span class="log-time">' + ts + '</span><span class="log-name">' + d.name + '</span><span class="log-price">￥' + d.price + '</span>';
+        logArea.insertBefore(e, logArea.firstChild);
+      }
+    } else {
+      pName.textContent = '❌ ' + (d.msg || '未找到商品'); pPrice.textContent = '-';
+      speakText('没找到商品');
+    }
+    input.value = '';
+  }).catch(function () { pName.textContent = '❌ 网络错误'; pPrice.textContent = '-'; input.value = ''; });
+}
+
+function resetAll() {
+  if (!confirm('确定要清空当前账单吗？')) return;
+  fetchJSON('/reset_cart/').then(function (d) {
+    if (d.status === 'success') { pName.textContent = '等待扫码...'; pPrice.textContent = '-'; location.reload(); }
+  });
+}
+
+function doCheckout() {
+  speakText('正在处理结账');
+  fetchJSON('/checkout_cart/').then(function (d) {
+    if (d.status === 'success') {
+      speakText('收款成功');
+      pName.textContent = '✅ 结账完成'; pPrice.textContent = '-';
+      updateStats(); loadDashboard();
+      setTimeout(function () {
+        pName.textContent = '等待扫码...';
+        logArea.innerHTML = '<div class="empty-state">账单已结清，扫码开始新订单</div>';
+        emptyLog = document.querySelector('.empty-state');
+      }, 3000);
+    } else { alert(d.msg); }
+  });
+}
+
+setInterval(function () { if (document.activeElement !== input) input.focus(); }, 1000);
+
+input.addEventListener('keyup', function (e) {
+  if (e.key !== 'Enter') return;
+  var code = input.value.trim();
+  if (!code) return;
+  if (/^\d{18}$/.test(code) && (code.startsWith('13') || code.startsWith('28'))) {
+    doCheckout(); input.value = ''; return;
+  }
+  processBarcode(code);
+});
+
+updateStats();
+loadDashboard();
+setInterval(updateStats, 5000);
+setInterval(loadDashboard, 30000);
 </script>
 </body>
 </html>"""
@@ -882,6 +1067,78 @@ def verify_order(request):
         return JsonResponse({'status': 'fail', 'msg': '未找到待取货订单'})
     except Exception as e:
         return JsonResponse({'status': 'fail', 'msg': str(e)})
+
+
+# 仪表盘统计数据（供网页端下方图表使用）
+def dashboard_stats(request):
+    now = timezone.now()
+    today = now.date()
+    week_ago = today - timedelta(days=6)
+
+    # 本日营收
+    line_total = ExpressionWrapper(
+        F('price') * F('quantity'),
+        output_field=DecimalField(max_digits=12, decimal_places=2)
+    )
+    today_stats = SaleHistory.objects.filter(
+        sale_date__date=today
+    ).aggregate(
+        total=Sum(line_total),
+        count=Sum('quantity')
+    )
+    today_revenue = float(today_stats['total'] or 0)
+    today_count = int(today_stats['count'] or 0)
+
+    # 最近7天销售趋势
+    daily_revenue = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        day_stats = SaleHistory.objects.filter(
+            sale_date__date=day
+        ).aggregate(
+            total=Sum(line_total)
+        )
+        daily_revenue.append({
+            'date': day.strftime('%m/%d'),
+            'total': float(day_stats['total'] or 0)
+        })
+
+    # 分类销售占比（过去30天）
+    month_ago = today - timedelta(days=30)
+    cat_sales = (SaleHistory.objects
+        .filter(sale_date__date__gte=month_ago)
+        .values('product_name')
+        .annotate(total_qty=Sum('quantity'))
+        .order_by('-total_qty')[:5])
+    top_products = [{'name': s['product_name'], 'qty': s['total_qty']} for s in cat_sales]
+
+    # 分类商品数量
+    cat_counts = {}
+    for cat, _ in Product.CATEGORY_CHOICES:
+        count = Product.objects.filter(category=cat, stock__gt=0).count()
+        if count > 0:
+            cat_names = dict(Product.CATEGORY_CHOICES)
+            cat_counts[cat_names.get(cat, cat)] = count
+
+    # 低库存商品
+    low_stock = list(
+        Product.objects.filter(stock__lte=5)
+        .order_by('stock')[:10]
+        .values('name', 'stock', 'price')
+    )
+
+    # 待处理订单
+    pending_orders = Order.objects.filter(status=0).count()
+
+    return JsonResponse({
+        'today_revenue': round(today_revenue, 2),
+        'today_count': today_count,
+        'daily_revenue': daily_revenue,
+        'top_products': top_products,
+        'category_distribution': cat_counts,
+        'low_stock': low_stock,
+        'pending_orders': pending_orders,
+    })
 
 
 # 健康检查接口（用于部署后快速诊断）

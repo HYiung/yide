@@ -6,14 +6,15 @@ const DEV_MODE = false;
 // 新：https://yideshuyuan-pehlausf.edgeone.cool（EdgeOne Pages）
 const BASE_URL = DEV_MODE
   ? 'http://192.168.1.138:8000'
-  : 'https://yide.dpdns.org/';
+  : 'https://yide.dpdns.org';
 
 function buildUrl(path) {
   if (/^https?:\/\//.test(path)) {
     return path;
   }
+  const base = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${BASE_URL}${normalizedPath}`;
+  return `${base}${normalizedPath}`;
 }
 
 function request(options) {
