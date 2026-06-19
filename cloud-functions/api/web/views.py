@@ -378,16 +378,15 @@ CASHIER_HTML = """<!DOCTYPE html>
 
 <script>
 var isCheckOnly = false;
-var scanCart = [];
 var scanTotal = 0.0;
 var scanCount = 0;
+var checkoutTimer = null;
 var revenueChart = null, categoryChart = null;
 
 var input = document.getElementById('barcode-input');
 var pName = document.getElementById('p-name');
 var pPrice = document.getElementById('p-price');
 var logArea = document.getElementById('logArea');
-var emptyLog = document.getElementById('emptyLog');
 
 /* ==== Speech: prewarm + delay fix for Chrome Chinese first-char loss ==== */
 (function () { if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); var _w = new SpeechSynthesisUtterance(' '); window.speechSynthesis.speak(_w); } })();
@@ -497,6 +496,7 @@ function loadDashboard() {
 
 function processBarcode(code) {
   if (!code) return;
+  if (checkoutTimer) { clearTimeout(checkoutTimer); checkoutTimer = null; }  // 取消结账后的"等待扫码"倒计时
   var url = (isCheckOnly ? '/get_product_by_barcode/?barcode=' : '/add_item/?barcode=') + encodeURIComponent(code);
   fetchWithTimeout(url).then(function (r) { return r.json(); }).then(function (d) {
     if (d.status === 'success') {
@@ -505,15 +505,7 @@ function processBarcode(code) {
       pPrice.textContent = '￥' + d.price;
       speakText(d.name + '，' + d.price + '元');
       if (!isCheckOnly) {
-        var el = emptyLog; if (el && el.parentNode) el.parentNode.removeChild(el);
-        var t = new Date();
-        var ts = t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0') + ':' + t.getSeconds().toString().padStart(2,'0');
-        var e = document.createElement('div'); e.className = 'log-entry';
-        e.innerHTML = '<span class="log-time">' + ts + '</span><span class="log-name">' + d.name + '</span><span class="log-price">￥' + d.price + '</span>';
-        logArea.insertBefore(e, logArea.firstChild);
-        scanTotal += parseFloat(d.price);
-        scanCount++;
-        updateCartSummary();
+        initCartSummary();  // 从服务端全量同步，确保件数/总价/记录列表一致
       }
     } else {
       pName.textContent = '❌ ' + (d.msg || '未找到商品'); pPrice.textContent = '-';
@@ -527,10 +519,8 @@ function resetAll() {
   if (!confirm('确定要清空当前账单吗？')) return;
   fetchJSON('/reset_cart/').then(function (d) {
     if (d.status === 'success') {
-      scanTotal = 0; scanCount = 0;
       pName.textContent = '等待扫码...'; pPrice.textContent = '-';
-      updateCartSummary();
-      location.reload();
+      initCartSummary();  // 同步服务端空购物车到页面
     }
   });
 }
@@ -540,14 +530,13 @@ function doCheckout() {
   fetchJSON('/checkout_cart/').then(function (d) {
     if (d.status === 'success') {
       speakText('收款成功');
-      scanTotal = 0; scanCount = 0;
       pName.textContent = '✅ 结账完成'; pPrice.textContent = '-';
-      updateCartSummary();
+      initCartSummary();  // 清零总价和清空记录列表
       updateStats(); loadDashboard();
-      setTimeout(function () {
+      if (checkoutTimer) clearTimeout(checkoutTimer);
+      checkoutTimer = setTimeout(function () {
         pName.textContent = '等待扫码...';
-        logArea.innerHTML = '<div class="empty-state">账单已结清，扫码开始新订单</div>';
-        emptyLog = logArea.querySelector('.empty-state');
+        checkoutTimer = null;
       }, 3000);
     } else { alert(d.msg); }
   });
@@ -653,13 +642,26 @@ function showLowStock() {
   if (cards.length >= 4) cards[3].onclick = showLowStock;
 })();
 
+function renderLogEntry(item) {
+  var ts = item.added_at || new Date().toTimeString().slice(0,8);
+  var e = document.createElement('div'); e.className = 'log-entry';
+  var qty = item.quantity > 1 ? ' ×' + item.quantity : '';
+  var sub = item.quantity > 1 ? ' (小计 ￥' + (parseFloat(item.price) * item.quantity).toFixed(2) + ')' : '';
+  e.innerHTML = '<span class="log-time">' + ts + '</span><span class="log-name">' + item.name + qty + '</span><span class="log-price">￥' + item.price + sub + '</span>';
+  return e;
+}
+
 function initCartSummary() {
   fetchWithTimeout('/get_cart_status/').then(function (r) { return r.json(); }).then(function (d) {
     if (d.items && d.items.length > 0) {
       scanCount = d.items.reduce(function (s, i) { return s + i.quantity; }, 0);
       scanTotal = parseFloat(d.total || 0);
+      // 重建扫码记录列表，确保网页端和小程序看到的购物车一致
+      logArea.innerHTML = '';
+      d.items.forEach(function (item) { logArea.appendChild(renderLogEntry(item)); });
     } else {
-      scanCount = 0; scanTotal = 0;  // 服务器已清空（如小程序操作），重置本地
+      scanCount = 0; scanTotal = 0;
+      logArea.innerHTML = '<div class="empty-state">暂无记录，扫码后将显示在此处</div>';
     }
     updateCartSummary();
   }).catch(function () {});
@@ -723,7 +725,8 @@ def get_cart_status(request):
             'price': str(i.product.price),
             'quantity': i.quantity,
             'remaining_stock': i.product.stock,
-            'category': i.product.category
+            'category': i.product.category,
+            'added_at': timezone.localtime(i.added_at).strftime('%H:%M:%S') if i.added_at else '',
         })
         total += i.product.price * i.quantity
     return JsonResponse({'items': data, 'total': str(total)})
@@ -1414,6 +1417,7 @@ def dashboard_all(request):
             'quantity': i.quantity,
             'remaining_stock': i.product.stock,
             'category': i.product.category,
+            'added_at': timezone.localtime(i.added_at).strftime('%H:%M:%S') if i.added_at else '',
         })
         cart_total += i.product.price * i.quantity
 
