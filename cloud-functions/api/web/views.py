@@ -658,6 +658,8 @@ function initCartSummary() {
     if (d.items && d.items.length > 0) {
       scanCount = d.items.reduce(function (s, i) { return s + i.quantity; }, 0);
       scanTotal = parseFloat(d.total || 0);
+    } else {
+      scanCount = 0; scanTotal = 0;  // 服务器已清空（如小程序操作），重置本地
     }
     updateCartSummary();
   }).catch(function () {});
@@ -668,6 +670,7 @@ loadDashboard();
 initCartSummary();
 setInterval(updateStats, 5000);
 setInterval(loadDashboard, 30000);
+setInterval(initCartSummary, 5000);  // 定期和服务端同步，防止小程序清空后本地不同步
 </script>
 
 <!-- Modal -->
