@@ -22,6 +22,13 @@ def _init_django():
         # EdgeOne 环境已预初始化 Django，直接获取 WSGI handler
         from django.core.handlers.wsgi import WSGIHandler
         _django_app = WSGIHandler()
+        # Auto-run migrations on EdgeOne cold start (PostgreSQL only)
+        if os.environ.get('CLOUD_DATABASE_URL'):
+            import django
+            django.setup()
+            from django.core.management import call_command
+            call_command('migrate', '--noinput', verbosity=0)
+            print("Migrations completed on startup", flush=True)
         print("Django initialized successfully", flush=True)
     except Exception as e:
         _init_error = traceback.format_exc()

@@ -15,6 +15,8 @@ import warnings
 from pathlib import Path
 from urllib.parse import urlparse
 
+import dj_database_url
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -94,14 +96,20 @@ WSGI_APPLICATION = 'yide.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 CLOUD_DATABASE_URL = os.environ.get('CLOUD_DATABASE_URL')
 if CLOUD_DATABASE_URL:
-    pass  # TODO: PostgreSQL 待部署 EdgeOne 后启用
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    DATABASES = {
+        'default': dj_database_url.parse(
+            CLOUD_DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
