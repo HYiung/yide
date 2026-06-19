@@ -149,6 +149,47 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write('\n'.join(msgs).encode())
             return
 
+        # === 诊断静态文件查找 ===
+        if urlparse(self.path).path == '/__static_diag__':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.end_headers()
+            lines = []
+            try:
+                from django.contrib.staticfiles import finders
+                from django.conf import settings
+                lines.append(f"STATIC_URL: {settings.STATIC_URL}")
+                lines.append(f"STATIC_ROOT: {getattr(settings, 'STATIC_ROOT', 'N/A')}")
+                lines.append(f"STATICFILES_DIRS: {getattr(settings, 'STATICFILES_DIRS', [])}")
+                lines.append(f"STATICFILES_FINDERS: {getattr(settings, 'STATICFILES_FINDERS', 'default')}")
+                # test finders.find()
+                test_path = 'admin/css/base.css'
+                lines.append(f"--- Testing finders.find('{test_path}') ---")
+                try:
+                    abs_path = finders.find(test_path)
+                    lines.append(f"Result: {abs_path}")
+                    if abs_path:
+                        import os
+                        lines.append(f"File exists: {os.path.exists(abs_path)}")
+                        lines.append(f"File size: {os.path.getsize(abs_path)}")
+                except Exception as e_find:
+                    lines.append(f"finders.find error: {e_find}")
+                    lines.append(traceback.format_exc())
+                # test import django to find path
+                import django
+                lines.append(f"--- Django location ---")
+                lines.append(f"Django file: {django.__file__}")
+                import os
+                django_dir = os.path.dirname(django.__file__)
+                admin_static = os.path.join(django_dir, 'contrib', 'admin', 'static', 'admin', 'css', 'base.css')
+                lines.append(f"Admin base.css: {admin_static}")
+                lines.append(f"Admin base.css exists: {os.path.exists(admin_static)}")
+            except Exception as e:
+                lines.append(f"Static diag error: {e}")
+                lines.append(traceback.format_exc())
+            self.wfile.write('\n'.join(lines).encode())
+            return
+
         # === 静态文件服务（Django admin CSS/JS 等） ===
         if urlparse(self.path).path.startswith('/static/'):
             try:
