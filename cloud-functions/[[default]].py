@@ -68,12 +68,16 @@ class handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length) if content_length > 0 else b''
+
+        # EdgeOne 的 Host 头是内部域名，用 Eo-Pages-Host 获取用户真实域名
+        real_host = self.headers.get('Eo-Pages-Host') or self.headers.get('Host', 'localhost')
+
         environ = {
             'REQUEST_METHOD': self.command, 'SCRIPT_NAME': '',
             'PATH_INFO': parsed.path, 'QUERY_STRING': parsed.query,
             'CONTENT_TYPE': self.headers.get('Content-Type', ''),
             'CONTENT_LENGTH': str(content_length),
-            'SERVER_NAME': self.headers.get('Host', 'localhost'),
+            'SERVER_NAME': real_host,
             'SERVER_PORT': '443', 'SERVER_PROTOCOL': self.request_version,
             'wsgi.version': (1,0), 'wsgi.url_scheme': 'https',
             'wsgi.input': io.BytesIO(body), 'wsgi.errors': sys.stderr,
@@ -81,6 +85,8 @@ class handler(BaseHTTPRequestHandler):
         }
         for k,v in self.headers.items():
             environ['HTTP_'+k.upper().replace('-','_')] = v
+        # 覆盖 HTTP_HOST 为真实域名（否则 Django ALLOWED_HOSTS 会拒绝）
+        environ['HTTP_HOST'] = real_host
 
         status = None; resp_hdrs = []
         def start_response(s, h, exc_info=None):
