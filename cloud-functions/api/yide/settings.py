@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 import warnings
 from pathlib import Path
 from urllib.parse import urlparse
@@ -94,7 +95,35 @@ WSGI_APPLICATION = 'yide.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 CLOUD_DATABASE_URL = os.environ.get('CLOUD_DATABASE_URL')
+# 检测 psycopg 是否可用（EdgeOne 构建可能未正确安装依赖）
+_psycopg_ok = False
 if CLOUD_DATABASE_URL:
+    try:
+        import psycopg
+        _psycopg_ok = True
+    except ImportError:
+        try:
+            import psycopg2
+            _psycopg_ok = True
+        except ImportError:
+            # 尝试将常见 pip 安装目录加入路径后重试
+            import sys as _sys, site as _site
+            for _p in ['/var/user/.venv/lib/python3.10/site-packages',
+                       '/var/user/.local/lib/python3.10/site-packages',
+                       '/var/lang/python310/lib/python3.10/site-packages']:
+                if os.path.isdir(_p) and _p not in _sys.path:
+                    _site.addsitedir(_p)
+            try:
+                import psycopg
+                _psycopg_ok = True
+            except ImportError:
+                try:
+                    import psycopg2
+                    _psycopg_ok = True
+                except ImportError:
+                    pass
+
+if CLOUD_DATABASE_URL and _psycopg_ok:
     url = urlparse(CLOUD_DATABASE_URL)
     DATABASES = {
         'default': {
@@ -108,6 +137,9 @@ if CLOUD_DATABASE_URL:
         }
     }
 else:
+    if CLOUD_DATABASE_URL and not _psycopg_ok:
+        import warnings as _w
+        _w.warn('psycopg/psycopg2 不可用，降级使用 SQLite（数据不会持久化！）')
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
