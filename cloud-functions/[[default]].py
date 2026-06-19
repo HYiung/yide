@@ -19,6 +19,19 @@ def _init_django():
     if _django_app is not None or _init_error is not None:
         return
     try:
+        # 先做迁移（必须在 WSGIHandler 创建之前，否则 app registry 冲突）
+        if os.environ.get('CLOUD_DATABASE_URL'):
+            try:
+                import django
+                django.setup()  # 先 setup 再 migrate
+                from django.core.management import call_command
+                call_command('makemigrations', '--noinput', verbosity=0)
+                call_command('migrate', '--noinput', verbosity=0)
+                print("Migrations completed on startup", flush=True)
+            except Exception as e_mig:
+                # 迁移失败时打印警告但不阻塞
+                print(f"Migration warning (non-fatal): {e_mig}", flush=True)
+
         # EdgeOne 环境已预初始化 Django，直接获取 WSGI handler
         from django.core.handlers.wsgi import WSGIHandler
         _django_app = WSGIHandler()
@@ -26,18 +39,6 @@ def _init_django():
     except Exception as e:
         _init_error = traceback.format_exc()
         print(f"Django init error: {_init_error}", flush=True)
-        return
-
-    # 自动迁移（独立 try/except，迁移失败不影响 Django 启动）
-    if os.environ.get('CLOUD_DATABASE_URL'):
-        try:
-            from django.core.management import call_command
-            # 先 makemigrations 确保模型变更已生成迁移文件
-            call_command('makemigrations', '--noinput', verbosity=0)
-            call_command('migrate', '--noinput', verbosity=0)
-            print("Migrations completed on startup", flush=True)
-        except Exception as e:
-            print(f"Migration error (non-fatal): {e}", flush=True)
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self): self._handle_request()
