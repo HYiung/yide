@@ -32,6 +32,8 @@ def _init_django():
     if os.environ.get('CLOUD_DATABASE_URL'):
         try:
             from django.core.management import call_command
+            # 先 makemigrations 确保模型变更已生成迁移文件
+            call_command('makemigrations', '--noinput', verbosity=0)
             call_command('migrate', '--noinput', verbosity=0)
             print("Migrations completed on startup", flush=True)
         except Exception as e:
