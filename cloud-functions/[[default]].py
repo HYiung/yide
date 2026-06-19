@@ -1,7 +1,7 @@
 """
 EdgeOne Pages Catch-All 入口（Handler 模式）
 """
-import io, os, sys, traceback
+import io, os, sys, traceback, mimetypes
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
@@ -147,6 +147,34 @@ class handler(BaseHTTPRequestHandler):
                 msgs.append(f"Render error: {e}")
                 msgs.append(traceback.format_exc())
             self.wfile.write('\n'.join(msgs).encode())
+            return
+
+        # === 静态文件服务（Django admin CSS/JS 等） ===
+        if urlparse(self.path).path.startswith('/static/'):
+            try:
+                from django.contrib.staticfiles import finders
+                relative_path = urlparse(self.path).path.lstrip('/')
+                abs_path = finders.find(relative_path)
+                if abs_path:
+                    content_type, _ = mimetypes.guess_type(str(abs_path))
+                    if content_type is None:
+                        content_type = 'application/octet-stream'
+                    self.send_response(200)
+                    self.send_header('Content-Type', content_type)
+                    self.send_header('Cache-Control', 'public, max-age=3600')
+                    self.end_headers()
+                    with open(abs_path, 'rb') as f:
+                        self.wfile.write(f.read())
+                else:
+                    self.send_response(404)
+                    self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(b'Static file not found')
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(f'Static file error: {e}\n{traceback.format_exc()}'.encode())
             return
 
         if _init_error:
