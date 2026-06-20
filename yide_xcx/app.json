@@ -1,9 +1,7 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/product/product",
-    "pages/mall/mall",
-    "pages/order/order"
+    "pages/product/product"
   ],
   "window": {
     "navigationBarTitleText": "一得书苑",

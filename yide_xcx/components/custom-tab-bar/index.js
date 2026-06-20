@@ -19,12 +19,9 @@ Component({
       const tabs = isAdminValue
         ? [
             { icon: '💳', label: '收银台', path: '/pages/index/index' },
-            { icon: '📦', label: '进货录入', path: '/pages/product/product' },
-            { icon: '🛍️', label: '商城', path: '/pages/mall/mall' }
+            { icon: '📦', label: '进货录入', path: '/pages/product/product' }
           ]
-        : [
-            { icon: '🛍️', label: '商城', path: '/pages/mall/mall' }
-          ];
+        : []; // 顾客请使用线上商城 H5：https://yide.dpdns.org
 
       // 判断是否需要安全区域适配
       try {

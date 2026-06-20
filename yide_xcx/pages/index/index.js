@@ -30,10 +30,10 @@ Page({
   },
 
   onLoad: function () {
-    // 立即检查身份，顾客直接跳转，不渲染收银台内容
+    // 立即检查身份，顾客跳转到线上商城 H5
     const isAdmin = wx.getStorageSync('is_admin');
     if (isAdmin === false) {
-      wx.reLaunch({ url: '/pages/mall/mall' });
+      this._showCustomerPrompt();
       return;
     }
     // 身份还未确认时（undefined），显示 loading 不渲染内容
@@ -47,7 +47,7 @@ Page({
   onShow: function () {
     const isAdmin = wx.getStorageSync('is_admin');
     if (isAdmin === false) {
-      wx.reLaunch({ url: '/pages/mall/mall' });
+      this._showCustomerPrompt();
       return;
     }
     if (isAdmin === undefined || isAdmin === '') {
@@ -58,6 +58,21 @@ Page({
     }
     this.refreshDashboard();
     this.startPolling();
+  },
+
+  _showCustomerPrompt: function () {
+    // 顾客请使用线上商城 H5
+    if (this._promptShown) return;
+    this._promptShown = true;
+    wx.showModal({
+      title: '📱 线上商城已升级',
+      content: '请在浏览器中打开 yide.dpdns.org 浏览商品并下单，无需使用小程序。',
+      confirmText: '知道了',
+      showCancel: false,
+      success: () => {
+        // 提示后留在空白页（小程序无可用页面）
+      }
+    });
   },
 
   _initPage: function () {

@@ -16,10 +16,15 @@ Page({
   },
 
   onShow: function () {
-    // 顾客请去商城，进货录入是店主用的
+    // 顾客请使用线上商城 H5，进货录入是店主用的
     const isAdmin = wx.getStorageSync('is_admin');
     if (isAdmin === false) {
-      wx.reLaunch({ url: '/pages/mall/mall' });
+      wx.showModal({
+        title: '📱 线上商城已升级',
+        content: '请在浏览器中打开 yide.dpdns.org 浏览商品并下单。',
+        confirmText: '知道了',
+        showCancel: false
+      });
       return;
     }
   },
