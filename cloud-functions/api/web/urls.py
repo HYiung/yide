@@ -2,9 +2,9 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # 将原来的 'web/' 改为 ''
-    # 这样：主路由的 "" + 子路由的 "" = 最终的根路径 "/"
-    path('', views.cash_register, name='cashier'),  # 电脑端收银页面
+    # 根路径 → 线上商城 H5（顾客线上下单）
+    path('', views.mall_home, name='mall'),
+    path('cashier/', views.cash_register, name='cashier'),  # 店长收银台 + 看板
     path('add_item/', views.add_item, name='add_item'),  # 电脑扫码枪调用
     path('get_cart_status/', views.get_cart_status, name='get_cart_status'),  # 小程序/网页同步显示
     path('reset_cart/', views.reset_cart, name='reset_cart'),  # 网页清空用

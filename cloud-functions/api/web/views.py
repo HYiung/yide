@@ -689,6 +689,1241 @@ setInterval(initCartSummary, 5000);  // 定期和服务端同步，防止小程�
 </body>
 </html>"""
 
+# ============================================================
+# 线上商城 H5 — 顾客线上下单页面（位于根路径 /）
+# ============================================================
+MALL_HTML = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>一得书苑 · 线上商城</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --green: #07c160;
+    --green-dark: #06ad56;
+    --green-light: #e8f8ee;
+    --bg: #f7f7f7;
+    --card-bg: #fff;
+    --text: #333;
+    --text-secondary: #999;
+    --border: #f0f0f0;
+    --shadow: 0 2px 12px rgba(0,0,0,0.06);
+    --radius: 12px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    padding-bottom: calc(70px + var(--safe-bottom) + 44px);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== Header ===== */
+  .mall-header {
+    background: var(--green);
+    color: #fff;
+    padding: 16px 16px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .mall-header h1 { font-size: 20px; font-weight: 600; text-align: center; letter-spacing: 1px; }
+
+  /* ===== Search ===== */
+  .search-bar {
+    padding: 10px 16px;
+    background: var(--bg);
+    position: sticky;
+    top: 52px;
+    z-index: 99;
+  }
+  .search-box {
+    display: flex;
+    gap: 8px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 4px 12px;
+    align-items: center;
+    box-shadow: var(--shadow);
+  }
+  .search-box input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    padding: 8px 0;
+    background: transparent;
+  }
+  .search-box button {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--text-secondary);
+  }
+  .search-clear {
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 4px;
+  }
+
+  /* ===== Category Bar ===== */
+  .category-bar {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 0 16px 10px;
+    background: var(--bg);
+    position: sticky;
+    top: 100px;
+    z-index: 98;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .category-bar::-webkit-scrollbar { display: none; }
+  .cat-item {
+    flex-shrink: 0;
+    padding: 5px 14px;
+    border-radius: 16px;
+    font-size: 13px;
+    background: var(--card-bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: var(--shadow);
+    border: 2px solid transparent;
+  }
+  .cat-item.active {
+    background: var(--green-light);
+    color: var(--green);
+    border-color: var(--green);
+    font-weight: 600;
+  }
+
+  /* ===== Loading ===== */
+  .loading-tip {
+    text-align: center;
+    padding: 40px 16px;
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+  .loading-spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Product Grid ===== */
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 0 16px 10px;
+  }
+  .product-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+  }
+  .card-img-wrap {
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    font-size: 48px;
+  }
+  .card-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .card-badge.hot { background: #ff4757; }
+  .card-badge.low { background: #ffa502; }
+  .card-info {
+    padding: 10px 12px 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .card-name {
+    font-size: 13px;
+    font-weight: 500;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.4;
+    min-height: 2.8em;
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+  }
+  .card-price {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--green);
+  }
+  .card-price::before { content: '¥'; font-size: 12px; }
+  .card-stock {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .card-stock.warn { color: #ffa502; }
+  .btn-add-wrap {
+    margin-top: 8px;
+  }
+  .btn-add {
+    width: 100%;
+    padding: 6px 0;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-add:active { background: var(--green-dark); }
+  .btn-add.sold-out { background: #ccc; cursor: not-allowed; }
+
+  /* ===== Empty ===== */
+  .empty-tip {
+    text-align: center;
+    padding: 60px 16px;
+    color: var(--text-secondary);
+    grid-column: 1 / -1;
+  }
+  .empty-icon { font-size: 48px; display: block; margin-bottom: 12px; }
+
+  /* ===== Cart Bar (bottom fixed) ===== */
+  .cart-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--card-bg);
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    padding: 8px 16px calc(8px + var(--safe-bottom));
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 500;
+    transition: transform 0.3s;
+  }
+  .cart-bar.hidden { transform: translateY(100%); }
+  .cart-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .cart-icon-wrap {
+    position: relative;
+    font-size: 28px;
+  }
+  .cart-badge-num {
+    position: absolute;
+    top: -6px;
+    right: -10px;
+    background: var(--green);
+    color: #fff;
+    font-size: 11px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    padding: 0 4px;
+  }
+  .cart-price-wrap {
+    display: flex;
+    flex-direction: column;
+  }
+  .total-text { font-size: 11px; color: var(--text-secondary); }
+  .price-num {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .price-num::before { content: '¥'; font-size: 13px; }
+  .settle-btn {
+    padding: 10px 24px;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: 22px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .settle-btn:active { background: var(--green-dark); }
+  .settle-btn.disabled { background: #ccc; cursor: not-allowed; }
+
+  /* ===== Cart Detail Overlay ===== */
+  .overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 600;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s;
+  }
+  .overlay.show { opacity: 1; visibility: visible; }
+
+  .cart-panel {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 0;
+    background: var(--card-bg);
+    border-radius: 16px 16px 0 0;
+    z-index: 700;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: var(--safe-bottom);
+  }
+  .cart-panel.show { transform: translateY(0); }
+  .cart-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .cart-panel-header .title { font-size: 16px; font-weight: 600; }
+  .clear-cart-btn {
+    font-size: 13px;
+    color: #ff4757;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .clear-cart-btn:active { background: #fff5f5; }
+  .cart-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 16px;
+  }
+  .cart-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .cart-item:last-child { border-bottom: none; }
+  .cart-item-left { flex: 1; min-width: 0; }
+  .cart-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cart-item-price {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .cart-item-emoji { font-size: 28px; flex-shrink: 0; }
+  .qty-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .qty-btn {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s;
+  }
+  .qty-btn:active { background: var(--border); }
+  .qty-num {
+    min-width: 24px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .cart-item-subtotal {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 52px;
+    text-align: right;
+  }
+  .cart-item-subtotal::before { content: '¥'; font-size: 11px; }
+
+  /* ===== Order Modal ===== */
+  .modal-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: var(--card-bg);
+    border-radius: 16px;
+    z-index: 800;
+    width: 88%;
+    max-width: 380px;
+    max-height: 80vh;
+    overflow-y: auto;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.25s;
+    padding: 20px;
+  }
+  .modal-panel.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .modal-panel h2 {
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .order-summary {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  .order-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 4px 0;
+  }
+  .order-item .name { color: var(--text); }
+  .order-item .sub { color: var(--text-secondary); }
+  .order-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0 0;
+    margin-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .order-total .val { color: var(--green); }
+  .order-total .val::before { content: '¥'; font-size: 12px; }
+  .name-input-wrap {
+    margin-bottom: 16px;
+  }
+  .name-input-wrap label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .name-input-wrap input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .name-input-wrap input:focus { border-color: var(--green); }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+  }
+  .modal-actions button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-cancel { background: var(--bg); color: var(--text); }
+  .btn-cancel:active { background: #e8e8e8; }
+  .btn-confirm { background: var(--green); color: #fff; }
+  .btn-confirm:active { background: var(--green-dark); }
+  .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ===== Success Modal ===== */
+  .success-modal {
+    text-align: center;
+  }
+  .success-icon { font-size: 56px; margin-bottom: 12px; display: block; }
+  .success-modal .order-no {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 8px 0 4px;
+  }
+  .success-modal .order-no span {
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .success-modal .tips {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .success-modal .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .success-modal .btn-primary:active { background: var(--green-dark); }
+
+  /* ===== Toast ===== */
+  .toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.78);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+    text-align: center;
+    max-width: 80%;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ===== Shopkeeper Entrance ===== */
+  .shopkeeper-bar {
+    text-align: center;
+    padding: 20px 16px calc(16px + var(--safe-bottom));
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .shopkeeper-bar a {
+    color: var(--green);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .shopkeeper-bar a:active { text-decoration: underline; }
+
+  /* ===== Offline Banner ===== */
+  .offline-banner {
+    background: #fff3cd;
+    color: #856404;
+    text-align: center;
+    padding: 8px;
+    font-size: 13px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="mall-header">
+  <h1>🛍️ 一得书苑 · 线上商城</h1>
+</div>
+
+<!-- Search -->
+<div class="search-bar">
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="搜索商品名称…" autocomplete="off">
+    <span class="search-clear" id="clearBtn" style="display:none">✕</span>
+    <button id="searchBtn">🔍</button>
+  </div>
+</div>
+
+<!-- Categories -->
+<div class="category-bar" id="categoryBar"></div>
+
+<!-- Loading -->
+<div class="loading-tip" id="loadingTip">
+  <div class="loading-spinner"></div>
+  <div>加载中...</div>
+</div>
+
+<!-- Product Grid -->
+<div class="product-grid" id="productGrid"></div>
+
+<!-- Empty -->
+<div class="empty-tip" id="emptyTip" style="display:none">
+  <span class="empty-icon">📭</span>
+  该分类暂无商品
+</div>
+
+<!-- Offline Banner -->
+<div class="offline-banner" id="offlineBanner">⚠️ 网络异常，部分功能可能不可用</div>
+
+<!-- Cart Detail Overlay -->
+<div class="overlay" id="cartOverlay"></div>
+
+<!-- Cart Detail Panel -->
+<div class="cart-panel" id="cartPanel">
+  <div class="cart-panel-header">
+    <span class="title">🛒 已选商品</span>
+    <span class="clear-cart-btn" id="clearCartBtn">🗑️ 清空</span>
+  </div>
+  <div class="cart-list" id="cartList"></div>
+</div>
+
+<!-- Order Modal -->
+<div class="overlay" id="orderOverlay"></div>
+<div class="modal-panel" id="orderPanel">
+  <h2>📋 确认订单</h2>
+  <div class="order-summary" id="orderSummary"></div>
+  <div class="name-input-wrap">
+    <label>👤 取货人姓名</label>
+    <input type="text" id="customerName" placeholder="请输入您的姓名" autocomplete="name">
+  </div>
+  <div class="modal-actions">
+    <button class="btn-cancel" id="orderCancel">取消</button>
+    <button class="btn-confirm" id="orderSubmit">✅ 提交订单</button>
+  </div>
+</div>
+
+<!-- Success Modal -->
+<div class="overlay" id="successOverlay"></div>
+<div class="modal-panel success-modal" id="successPanel">
+  <span class="success-icon">🎉</span>
+  <h2>下单成功！</h2>
+  <div class="order-no">订单号：<span id="orderSn"></span></div>
+  <div class="tips">请到柜台出示姓名核对后付款取货 🏪</div>
+  <button class="btn-primary" id="successDone">好的</button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Bottom Cart Bar -->
+<div class="cart-bar hidden" id="cartBar">
+  <div class="cart-info" id="cartBarInfo">
+    <div class="cart-icon-wrap">
+      <span>🛒</span>
+      <span class="cart-badge-num" id="cartBadge">0</span>
+    </div>
+    <div class="cart-price-wrap">
+      <span class="total-text">合计</span>
+      <span class="price-num" id="cartTotal">0.00</span>
+    </div>
+  </div>
+  <button class="settle-btn" id="settleBtn">去结算</button>
+</div>
+
+<!-- Shopkeeper Entrance -->
+<div class="shopkeeper-bar">
+  👤 <a href="/cashier/">店长入口</a> · 收银核销 / 扫码查价 / 订单管理
+</div>
+
+<script>
+// ============================================================
+// 配置 & 状态
+// ============================================================
+var API_BASE = '';
+var CATEGORIES = [
+  { id: 'all', name: '全部' },
+  { id: 'books', name: '📚 名著书籍' },
+  { id: 'pens', name: '🖊️ 书写工具' },
+  { id: 'papers', name: '📓 本册纸品' },
+  { id: 'stationery', name: '📐 学生文具' },
+  { id: 'correction', name: '📦 修正粘合' },
+  { id: 'others', name: '📎 其他' }
+];
+var CATEGORY_COLORS = {
+  books: '#667eea', pens: '#f5576c', papers: '#4facfe',
+  stationery: '#43e97b', correction: '#fa709a', others: '#a8edea'
+};
+
+var state = {
+  products: [],
+  cart: [],
+  activeCat: 'all',
+  searchKey: '',
+  loading: true,
+  cartOpen: false,
+  orderOpen: false,
+  submitting: false,
+  toastTimer: null
+};
+
+// ============================================================
+// Utility
+// ============================================================
+function getFromStorage(key, def) {
+  try { var v = localStorage.getItem('mall_' + key); return v ? JSON.parse(v) : def; } catch(e) { return def; }
+}
+function saveCart() {
+  try { localStorage.setItem('mall_cart', JSON.stringify(state.cart)); } catch(e) {}
+}
+function loadCart() {
+  try { var v = localStorage.getItem('mall_cart'); state.cart = v ? JSON.parse(v) : []; } catch(e) { state.cart = []; }
+}
+
+var EMOJI_MAP = [
+  ['字典','📕'], ['词典','📘'], ['成语','📘'],
+  ['作文','📗'], ['字帖','🖌️'], ['古诗词','📜'], ['唐诗','📜'], ['诗词','📜'],
+  ['绘本','🎨'], ['阅读','📖'],
+  ['中性笔','🖊️'], ['圆珠笔','🖊️'], ['签字笔','🖊️'],
+  ['铅笔','✏️'], ['自动铅笔','✏️'], ['钢笔','🖋️'],
+  ['马克笔','🖍️'], ['荧光笔','🖍️'], ['荧光','🖍️'],
+  ['水彩笔','🎨'], ['白板笔','🖍️'], ['记号笔','🖍️'],
+  ['笔芯','✒️'], ['替芯','✒️'],
+  ['笔记本','📓'], ['作业本','📔'], ['练习本','📔'], ['英语本','📔'],
+  ['方格本','📐'], ['便利贴','🏷️'], ['便签','🏷️'],
+  ['文件袋','📂'], ['档案袋','📁'], ['复印纸','📄'], ['打印纸','📄'],
+  ['A4纸','📄'], ['稿纸','📝'], ['线圈本','📓'],
+  ['橡皮','🧽'], ['尺子','📏'], ['直尺','📏'], ['三角尺','📐'],
+  ['圆规','📐'], ['剪刀','✂️'], ['订书机','🔧'],
+  ['订书钉','📌'], ['订书针','📌'], ['回形针','📎'],
+  ['长尾夹','📎'], ['卷笔刀','🌀'], ['削笔','🌀'],
+  ['美工刀','🔪'], ['垫板','🖼️'], ['笔袋','👝'],
+  ['文具盒','🧰'], ['书包','🎒'], ['打孔','🔴'],
+  ['修正带','📦'], ['修正液','🧴'], ['涂改液','🧴'],
+  ['改正带','📦'], ['固体胶','🧴'], ['胶棒','🧴'],
+  ['胶水','🧴'], ['胶带','📯'], ['双面胶','📯'],
+  ['计算器','🔢'], ['台历','📅']
+];
+function getProductEmoji(name) {
+  for (var i = 0; i < EMOJI_MAP.length; i++) {
+    if (name.indexOf(EMOJI_MAP[i][0]) !== -1) return EMOJI_MAP[i][1];
+  }
+  return '📦';
+}
+function getCategoryColor(cat) { return CATEGORY_COLORS[cat] || '#c0c0c0'; }
+function getProductStock(p) { return Number(p.stock || p.remaining_stock || 0); }
+function isNewProduct(p) {
+  if (!p.create_time) return false;
+  var d = new Date(p.create_time);
+  return ((Date.now() - d.getTime()) / 86400000) <= 7;
+}
+
+// ============================================================
+// API
+// ============================================================
+function apiGet(url) {
+  return fetch(API_BASE + url, { signal: AbortSignal.timeout(8000) }).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  });
+}
+function apiPost(url, data) {
+  return fetch(API_BASE + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    signal: AbortSignal.timeout(8000)
+  }).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  });
+}
+
+// ============================================================
+// Toast
+// ============================================================
+function showToast(msg, icon) {
+  var el = document.getElementById('toast');
+  el.textContent = (icon || '') + ' ' + msg;
+  el.className = 'toast show';
+  if (state.toastTimer) clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(function() { el.className = 'toast'; }, 2000);
+}
+
+// ============================================================
+// Render Categories
+// ============================================================
+function renderCategories() {
+  var el = document.getElementById('categoryBar');
+  el.innerHTML = CATEGORIES.map(function(c) {
+    return '<div class="cat-item' + (c.id === state.activeCat ? ' active' : '') + '" data-cat="' + c.id + '">' + c.name + '</div>';
+  }).join('');
+  el.addEventListener('click', function(e) {
+    var item = e.target.closest('.cat-item');
+    if (!item) return;
+    state.activeCat = item.dataset.cat;
+    renderCategories();
+    fetchProducts();
+  });
+}
+
+// ============================================================
+// Fetch Products
+// ============================================================
+var _fetchCount = 0;
+function fetchProducts() {
+  state.loading = true;
+  document.getElementById('loadingTip').style.display = 'block';
+  document.getElementById('productGrid').style.display = 'none';
+  document.getElementById('emptyTip').style.display = 'none';
+
+  var cat = state.activeCat;
+  var search = state.searchKey;
+  var reqId = ++_fetchCount;
+
+  apiGet('/api/mall_products/?category=' + encodeURIComponent(cat) + '&search=' + encodeURIComponent(search))
+    .then(function(data) {
+      if (reqId !== _fetchCount) return; // stale
+      state.loading = false;
+      document.getElementById('loadingTip').style.display = 'none';
+      if (data && data.status === 'success') {
+        var list = (data.list || []).map(function(p) {
+          return {
+            id: p.id,
+            name: p.name,
+            price: String(p.price),
+            stock: getProductStock(p),
+            category: p.category,
+            create_time: p.create_time,
+            productEmoji: getProductEmoji(p.name),
+            categoryColor: getCategoryColor(p.category)
+          };
+        });
+        state.products = list;
+        if (list.length > 0) {
+          document.getElementById('productGrid').style.display = 'grid';
+          renderProducts(list);
+          syncCartWithProducts();
+        } else {
+          document.getElementById('emptyTip').style.display = 'block';
+        }
+      } else {
+        showToast((data && data.msg) || '商品加载失败', '⚠️');
+        document.getElementById('emptyTip').style.display = 'block';
+      }
+      document.getElementById('offlineBanner').style.display = 'none';
+    })
+    .catch(function(err) {
+      if (reqId !== _fetchCount) return;
+      state.loading = false;
+      document.getElementById('loadingTip').style.display = 'none';
+      document.getElementById('offlineBanner').style.display = 'block';
+      showToast('服务器连接失败', '⚠️');
+      // 尝试用缓存的商品展示
+      if (state.products.length > 0) {
+        document.getElementById('productGrid').style.display = 'grid';
+        renderProducts(state.products);
+      } else {
+        document.getElementById('emptyTip').style.display = 'block';
+      }
+    });
+}
+
+// ============================================================
+// Render Products
+// ============================================================
+function renderProducts(list) {
+  var el = document.getElementById('productGrid');
+  el.innerHTML = list.map(function(p) {
+    var stock = p.stock;
+    var badges = '';
+    if (isNewProduct(p)) badges += '<div class="card-badge hot">新品</div>';
+    else if (stock <= 5) badges += '<div class="card-badge low">仅剩' + stock + '</div>';
+
+    var canBuy = stock > 0;
+    var inCart = state.cart.find(function(c) { return c.id === p.id; });
+    var btnHtml = canBuy
+      ? '<button class="btn-add" data-id="' + p.id + '">加入购物车</button>'
+      : '<button class="btn-add sold-out" disabled>已售罄</button>';
+
+    return '<div class="product-card" data-id="' + p.id + '">'
+      + '<div class="card-img-wrap" style="background:' + p.categoryColor + ';">'
+        + '<span style="font-size:48px">' + p.productEmoji + '</span>'
+        + badges
+      + '</div>'
+      + '<div class="card-info">'
+        + '<div class="card-name">' + escHtml(p.name) + '</div>'
+        + '<div class="card-meta">'
+          + '<span class="card-price">' + p.price + '</span>'
+          + '<span class="card-stock' + (stock <= 5 ? ' warn' : '') + '">'
+            + (stock > 10 ? '库存充足' : (stock <= 0 ? '无货' : '剩' + stock))
+          + '</span>'
+        + '</div>'
+        + '<div class="btn-add-wrap">' + btnHtml + '</div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+
+  // Event delegation for add-to-cart
+  el.addEventListener('click', function(e) {
+    var btn = e.target.closest('.btn-add');
+    if (!btn || btn.disabled) return;
+    var card = btn.closest('.product-card');
+    if (!card) return;
+    var id = Number(card.dataset.id);
+    var product = state.products.find(function(p) { return p.id === id; });
+    if (product) addToCart(product);
+  });
+}
+
+function escHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ============================================================
+// Cart Operations
+// ============================================================
+function addToCart(product) {
+  var idx = state.cart.findIndex(function(c) { return c.id === product.id; });
+  if (idx === -1) {
+    if (product.stock <= 0) { showToast('该商品已售罄', '😅'); return; }
+    state.cart.push({
+      id: product.id,
+      name: product.name,
+      price: Number(product.price),
+      num: 1,
+      stock: product.stock,
+      category: product.category,
+      productEmoji: product.productEmoji,
+      categoryColor: product.categoryColor
+    });
+  } else {
+    if (state.cart[idx].num >= product.stock) {
+      showToast('库存仅剩 ' + product.stock + ' 件', '⚠️');
+      return;
+    }
+    state.cart[idx].num += 1;
+  }
+  saveCart();
+  updateCartBar();
+  showToast('已加入 🛒', '✅');
+}
+
+function minusItem(id) {
+  var idx = state.cart.findIndex(function(c) { return c.id === id; });
+  if (idx === -1) return;
+  if (state.cart[idx].num > 1) {
+    state.cart[idx].num -= 1;
+  } else {
+    state.cart.splice(idx, 1);
+    if (state.cart.length === 0 && state.cartOpen) toggleCart();
+  }
+  saveCart();
+  updateCartBar();
+  renderCartList();
+}
+
+function plusItem(id) {
+  var idx = state.cart.findIndex(function(c) { return c.id === id; });
+  if (idx === -1) return;
+  var product = state.products.find(function(p) { return p.id === id; });
+  var maxStock = product ? product.stock : state.cart[idx].stock;
+  if (state.cart[idx].num >= maxStock) {
+    showToast('库存仅剩 ' + maxStock + ' 件', '⚠️');
+    return;
+  }
+  state.cart[idx].num += 1;
+  saveCart();
+  updateCartBar();
+  renderCartList();
+}
+
+function clearCart() {
+  if (state.cart.length === 0) return;
+  if (!confirm('确定要清空购物车吗？')) return;
+  state.cart = [];
+  saveCart();
+  updateCartBar();
+  renderCartList();
+  if (state.cartOpen) toggleCart();
+  showToast('已清空', '🗑️');
+}
+
+function syncCartWithProducts() {
+  var changed = false;
+  var productMap = {};
+  state.products.forEach(function(p) { productMap[p.id] = p; });
+
+  state.cart = state.cart.filter(function(item) {
+    var latest = productMap[item.id];
+    if (!latest) { changed = true; return false; }
+    var stock = getProductStock(latest);
+    if (stock <= 0) { changed = true; return false; }
+    var num = Math.min(item.num, stock);
+    if (num !== item.num) { changed = true; }
+    item.num = num;
+    item.stock = stock;
+    item.price = Number(latest.price);
+    item.name = latest.name;
+    // update emoji/color in case product name changed category
+    item.productEmoji = getProductEmoji(latest.name);
+    item.categoryColor = getCategoryColor(latest.category);
+    return true;
+  });
+
+  if (changed) {
+    saveCart();
+    updateCartBar();
+    showToast('购物车已按最新库存更新', '🔄');
+  }
+}
+
+// ============================================================
+// Cart Bar & Panel
+// ============================================================
+function updateCartBar() {
+  var totalCount = 0, totalPrice = 0;
+  state.cart.forEach(function(v) {
+    totalCount += v.num;
+    totalPrice += v.num * v.price;
+  });
+
+  document.getElementById('cartBadge').textContent = totalCount > 99 ? '99+' : totalCount;
+  document.getElementById('cartTotal').textContent = totalPrice.toFixed(2);
+
+  var bar = document.getElementById('cartBar');
+  var settleBtn = document.getElementById('settleBtn');
+  if (totalCount > 0) {
+    bar.className = 'cart-bar';
+    settleBtn.className = 'settle-btn';
+  } else {
+    bar.className = 'cart-bar hidden';
+    settleBtn.className = 'settle-btn disabled';
+  }
+}
+
+function toggleCart() {
+  state.cartOpen = !state.cartOpen;
+  document.getElementById('cartOverlay').className = 'overlay' + (state.cartOpen ? ' show' : '');
+  document.getElementById('cartPanel').className = 'cart-panel' + (state.cartOpen ? ' show' : '');
+  if (state.cartOpen) renderCartList();
+}
+
+function renderCartList() {
+  var el = document.getElementById('cartList');
+  if (state.cart.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:30px 0;color:#999;">购物车为空</div>';
+    return;
+  }
+  el.innerHTML = state.cart.map(function(item) {
+    var subtotal = (item.num * item.price).toFixed(2);
+    return '<div class="cart-item" data-id="' + item.id + '">'
+      + '<span class="cart-item-emoji">' + (item.productEmoji || '📦') + '</span>'
+      + '<div class="cart-item-left">'
+        + '<span class="cart-item-name">' + escHtml(item.name) + '</span>'
+        + '<span class="cart-item-price">¥' + Number(item.price).toFixed(2) + '/件</span>'
+      + '</div>'
+      + '<div class="qty-ctrl">'
+        + '<div class="qty-btn minus-btn" data-id="' + item.id + '">−</div>'
+        + '<span class="qty-num">' + item.num + '</span>'
+        + '<div class="qty-btn plus-btn" data-id="' + item.id + '">+</div>'
+      + '</div>'
+      + '<span class="cart-item-subtotal">' + subtotal + '</span>'
+    + '</div>';
+  }).join('');
+
+  // Event listeners for qty buttons
+  el.querySelectorAll('.minus-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      minusItem(Number(e.currentTarget.dataset.id));
+    });
+  });
+  el.querySelectorAll('.plus-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      plusItem(Number(e.currentTarget.dataset.id));
+    });
+  });
+}
+
+// ============================================================
+// Order
+// ============================================================
+function openOrder() {
+  if (state.cart.length === 0) { showToast('购物车为空', '🛒'); return; }
+  state.orderOpen = true;
+  document.getElementById('orderOverlay').className = 'overlay show';
+  document.getElementById('orderPanel').className = 'modal-panel show';
+
+  // Render order summary
+  var total = 0;
+  var html = state.cart.map(function(item) {
+    var sub = (item.num * item.price).toFixed(2);
+    total += item.num * item.price;
+    return '<div class="order-item">'
+      + '<span class="name">' + escHtml(item.name) + ' × ' + item.num + '</span>'
+      + '<span class="sub">¥' + sub + '</span>'
+    + '</div>';
+  }).join('');
+  html += '<div class="order-total"><span>合计</span><span class="val">' + total.toFixed(2) + '</span></div>';
+  document.getElementById('orderSummary').innerHTML = html;
+
+  document.getElementById('customerName').value = '';
+  document.getElementById('orderSubmit').disabled = false;
+  document.getElementById('orderSubmit').textContent = '✅ 提交订单';
+  state.submitting = false;
+}
+
+function closeOrder() {
+  state.orderOpen = false;
+  document.getElementById('orderOverlay').className = 'overlay';
+  document.getElementById('orderPanel').className = 'modal-panel';
+}
+
+function submitOrder() {
+  if (state.submitting) return;
+  var name = document.getElementById('customerName').value.trim();
+  if (!name) { showToast('请输入取货人姓名', '👤'); return; }
+
+  state.submitting = true;
+  var btn = document.getElementById('orderSubmit');
+  btn.disabled = true;
+  btn.textContent = '⏳ 提交中...';
+
+  var cartData = state.cart.map(function(item) {
+    return { id: item.id, name: item.name, price: String(item.price), num: item.num };
+  });
+  var total = state.cart.reduce(function(sum, item) { return sum + item.num * item.price; }, 0);
+
+  apiPost('/api/submit_order/', {
+    name: name,
+    cart: cartData,
+    total: total.toFixed(2)
+  }).then(function(data) {
+    state.submitting = false;
+    if (data.status === 'success') {
+      // Clear cart
+      state.cart = [];
+      saveCart();
+      updateCartBar();
+
+      // Show success
+      closeOrder();
+      document.getElementById('orderSn').textContent = data.order_sn || '';
+      document.getElementById('successOverlay').className = 'overlay show';
+      document.getElementById('successPanel').className = 'modal-panel success-modal show';
+    } else {
+      btn.disabled = false;
+      btn.textContent = '✅ 提交订单';
+      showToast(data.msg || '提交失败', '⚠️');
+    }
+  }).catch(function(err) {
+    state.submitting = false;
+    btn.disabled = false;
+    btn.textContent = '✅ 提交订单';
+    showToast('网络异常，请重试', '⚠️');
+  });
+}
+
+function closeSuccess() {
+  document.getElementById('successOverlay').className = 'overlay';
+  document.getElementById('successPanel').className = 'modal-panel success-modal';
+}
+
+// ============================================================
+// Init
+// ============================================================
+function init() {
+  loadCart();
+
+  // Search
+  document.getElementById('searchBtn').addEventListener('click', function() {
+    state.searchKey = document.getElementById('searchInput').value.trim();
+    if (state.searchKey) state.activeCat = 'all';
+    renderCategories();
+    fetchProducts();
+  });
+  document.getElementById('searchInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      state.searchKey = e.target.value.trim();
+      if (state.searchKey) state.activeCat = 'all';
+      renderCategories();
+      fetchProducts();
+    }
+  });
+  document.getElementById('searchInput').addEventListener('input', function(e) {
+    document.getElementById('clearBtn').style.display = e.target.value ? '' : 'none';
+  });
+  document.getElementById('clearBtn').addEventListener('click', function() {
+    document.getElementById('searchInput').value = '';
+    state.searchKey = '';
+    document.getElementById('clearBtn').style.display = 'none';
+    fetchProducts();
+  });
+
+  // Cart
+  document.getElementById('cartBarInfo').addEventListener('click', toggleCart);
+  document.getElementById('cartOverlay').addEventListener('click', toggleCart);
+  document.getElementById('clearCartBtn').addEventListener('click', clearCart);
+
+  // Order
+  document.getElementById('settleBtn').addEventListener('click', openOrder);
+  document.getElementById('orderCancel').addEventListener('click', closeOrder);
+  document.getElementById('orderOverlay').addEventListener('click', closeOrder);
+  document.getElementById('orderSubmit').addEventListener('click', submitOrder);
+
+  // Success
+  document.getElementById('successDone').addEventListener('click', closeSuccess);
+  document.getElementById('successOverlay').addEventListener('click', closeSuccess);
+
+  renderCategories();
+  updateCartBar();
+  fetchProducts();
+
+  // Periodic cart sync
+  setInterval(function() {
+    if (state.products.length > 0) syncCartWithProducts();
+  }, 15000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>"""
+
+def mall_home(request):
+    from django.http import HttpResponse
+    return HttpResponse(MALL_HTML)
+
+
 def cash_register(request):
     from django.http import HttpResponse
     return HttpResponse(CASHIER_HTML)
