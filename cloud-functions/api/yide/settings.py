@@ -50,6 +50,9 @@ ALLOWED_HOSTS = [
 WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
 WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
 
+# 店长入口密码（访问收银台 + 管理后台）
+SHOPKEEPER_PASSWORD = os.environ.get('SHOPKEEPER_PASSWORD', 'yide888')
+
 # Application definition
 
 INSTALLED_APPS = [

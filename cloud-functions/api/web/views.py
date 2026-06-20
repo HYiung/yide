@@ -5,10 +5,11 @@ from decimal import Decimal, InvalidOperation
 
 import requests
 from django.conf import settings
+from django.contrib.auth import login as auth_login, logout as auth_logout, get_user_model
 from django.db import transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Max, Q, Sum
-from django.http import JsonResponse
-from django.shortcuts import render
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
@@ -287,6 +288,15 @@ CASHIER_HTML = """<!DOCTYPE html>
     .stats-row { padding: 16px; }
     .header { padding: 16px 20px; }
   }
+  .admin-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #fafafa; border-top: 1px solid #f0f0f0;
+    padding: 8px 16px; z-index: 100;
+    display: flex; justify-content: center; gap: 20px; font-size: 13px;
+  }
+  .admin-bar a { color: #666; text-decoration: none; }
+  .admin-bar a:hover { color: #07c160; }
+  body { padding-bottom: 40px; }
 </style>
 </head>
 <body>
@@ -686,6 +696,12 @@ setInterval(initCartSummary, 5000);  // 定期和服务端同步，防止小程�
   </div>
 </div>
 
+<!-- Admin Bar -->
+<div class="admin-bar">
+  <a href="/admin/">⚙️ 管理后台</a>
+  <a href="/cashier/logout/">🚪 退出登录</a>
+</div>
+
 </body>
 </html>"""
 
@@ -731,8 +747,25 @@ MALL_HTML = """<!DOCTYPE html>
     position: sticky;
     top: 0;
     z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
-  .mall-header h1 { font-size: 20px; font-weight: 600; text-align: center; letter-spacing: 1px; }
+  .mall-header h1 { font-size: 18px; font-weight: 600; letter-spacing: 1px; }
+  .header-admin-btn {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    text-decoration: none;
+    opacity: 0.55;
+    color: #fff;
+    padding: 6px;
+    border-radius: 8px;
+    transition: opacity 0.2s;
+  }
+  .header-admin-btn:hover { opacity: 1; }
 
   /* ===== Search ===== */
   .search-bar {
@@ -1241,19 +1274,13 @@ MALL_HTML = """<!DOCTYPE html>
   }
   .toast.show { opacity: 1; }
 
-  /* ===== Shopkeeper Entrance ===== */
+  /* ===== Footer ===== */
   .shopkeeper-bar {
     text-align: center;
     padding: 20px 16px calc(16px + var(--safe-bottom));
     color: var(--text-secondary);
     font-size: 12px;
   }
-  .shopkeeper-bar a {
-    color: var(--green);
-    text-decoration: none;
-    font-weight: 500;
-  }
-  .shopkeeper-bar a:active { text-decoration: underline; }
 
   /* ===== Offline Banner ===== */
   .offline-banner {
@@ -1271,6 +1298,7 @@ MALL_HTML = """<!DOCTYPE html>
 <!-- Header -->
 <div class="mall-header">
   <h1>🛍️ 一得书苑 · 线上商城</h1>
+  <a href="/cashier/" class="header-admin-btn" title="店长入口">🔑</a>
 </div>
 
 <!-- Search -->
@@ -1360,7 +1388,7 @@ MALL_HTML = """<!DOCTYPE html>
 
 <!-- Shopkeeper Entrance -->
 <div class="shopkeeper-bar">
-  👤 <a href="/cashier/">店长入口</a> · 收银核销 / 扫码查价 / 订单管理
+  🏪 到店取货 · 提交后到柜台报姓名付款取货
 </div>
 
 <script>
@@ -1925,8 +1953,155 @@ def mall_home(request):
 
 
 def cash_register(request):
-    from django.http import HttpResponse
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return redirect('cashier_login')
     return HttpResponse(CASHIER_HTML)
+
+
+# ============================================================
+# 店长入口登录（单密码 + 自动登录 Django admin）
+# ============================================================
+CASHIER_LOGIN_HTML = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>一得书苑 · 店长入口</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .login-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 40px 32px 32px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    text-align: center;
+  }
+  .login-icon { font-size: 56px; margin-bottom: 12px; display: block; }
+  .login-title { font-size: 22px; font-weight: 700; color: #333; margin-bottom: 4px; }
+  .login-sub { font-size: 14px; color: #999; margin-bottom: 28px; }
+  .login-form input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid #e8e8e8;
+    border-radius: 12px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+    text-align: center;
+    letter-spacing: 4px;
+  }
+  .login-form input:focus { border-color: #667eea; }
+  .login-form input::placeholder { letter-spacing: 0; color: #ccc; }
+  .login-btn {
+    width: 100%;
+    padding: 14px;
+    margin-top: 16px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .login-btn:active { transform: scale(0.97); box-shadow: none; }
+  .login-error {
+    color: #f5222d;
+    font-size: 14px;
+    margin-top: 12px;
+    display: none;
+  }
+  .login-error.show { display: block; }
+  .back-link {
+    margin-top: 20px;
+    font-size: 13px;
+  }
+  .back-link a { color: rgba(255,255,255,0.8); text-decoration: none; }
+  .back-link a:hover { color: #fff; }
+</style>
+</head>
+<body>
+<div class="login-card">
+  <span class="login-icon">🔐</span>
+  <div class="login-title">店长入口</div>
+  <div class="login-sub">请输入密码进入收银台与后台管理</div>
+  <form class="login-form" method="POST" action="/cashier/login/" id="loginForm">
+    <input type="password" name="password" id="passwordInput" placeholder="输入密码" autocomplete="off" autofocus>
+    <button type="submit" class="login-btn">🔑 进入</button>
+    <div class="login-error" id="errorMsg"></div>
+  </form>
+</div>
+<div class="back-link">
+  <a href="/">← 返回线上商城</a>
+</div>
+
+<script>
+// 若有错误参数，显示错误提示
+var params = new URLSearchParams(window.location.search);
+if (params.get('error') === '1') {
+  document.getElementById('errorMsg').textContent = '密码错误，请重试';
+  document.getElementById('errorMsg').className = 'login-error show';
+}
+document.getElementById('passwordInput').focus();
+</script>
+</body>
+</html>"""
+
+
+@csrf_exempt
+def cashier_login(request):
+    if request.user.is_authenticated and request.user.is_staff:
+        return redirect('cashier')
+
+    if request.method == 'POST':
+        pwd = request.POST.get('password', '')
+        if pwd == settings.SHOPKEEPER_PASSWORD:
+            User = get_user_model()
+            shopkeeper, created = User.objects.get_or_create(
+                username='shopkeeper',
+                defaults={
+                    'is_staff': True,
+                    'is_superuser': True,
+                    'email': 'shopkeeper@yide.local',
+                }
+            )
+            if created:
+                shopkeeper.set_unusable_password()
+                shopkeeper.save()
+            else:
+                # 确保权限不变（防止手动修改）
+                changed = False
+                if not shopkeeper.is_staff:
+                    shopkeeper.is_staff = True; changed = True
+                if not shopkeeper.is_superuser:
+                    shopkeeper.is_superuser = True; changed = True
+                if changed:
+                    shopkeeper.save()
+
+            auth_login(request, shopkeeper, backend='django.contrib.auth.backends.ModelBackend')
+            return redirect('cashier')
+
+        return redirect('/cashier/login/?error=1')
+
+    return HttpResponse(CASHIER_LOGIN_HTML)
+
+
+def cashier_logout(request):
+    auth_logout(request)
+    return redirect('/cashier/login/')
 
 
 # API 接口：根据条码查商品

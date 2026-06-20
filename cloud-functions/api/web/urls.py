@@ -4,7 +4,9 @@ from . import views
 urlpatterns = [
     # 根路径 → 线上商城 H5（顾客线上下单）
     path('', views.mall_home, name='mall'),
-    path('cashier/', views.cash_register, name='cashier'),  # 店长收银台 + 看板
+    path('cashier/', views.cash_register, name='cashier'),  # 店长收银台 + 看板（需登录）
+    path('cashier/login/', views.cashier_login, name='cashier_login'),  # 店长登录
+    path('cashier/logout/', views.cashier_logout, name='cashier_logout'),  # 退出登录
     path('add_item/', views.add_item, name='add_item'),  # 电脑扫码枪调用
     path('get_cart_status/', views.get_cart_status, name='get_cart_status'),  # 小程序/网页同步显示
     path('reset_cart/', views.reset_cart, name='reset_cart'),  # 网页清空用
