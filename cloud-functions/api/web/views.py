@@ -2241,12 +2241,13 @@ def _lookup_barcode_external(barcode):
 
     # ── 通用条码：并行查多个数据源，取最先查到结果的 ──
     try:
-        with ThreadPoolExecutor(max_workers=4) as ex:
+        with ThreadPoolExecutor(max_workers=5) as ex:
             futures = {
                 ex.submit(_fetch_barcodelist, barcode): 1,
                 ex.submit(_fetch_openfoodfacts, barcode): 2,
                 ex.submit(_fetch_upcitemdb, barcode): 3,
                 ex.submit(_fetch_bing_search, barcode): 4,
+                ex.submit(_fetch_duckduckgo_search, barcode): 5,
             }
             for future in as_completed(futures, timeout=20):
                 result = future.result()
@@ -2261,7 +2262,7 @@ def _lookup_barcode_external(barcode):
         pass
 
     # 降级：串行尝试
-    for fetcher in (_fetch_barcodelist, _fetch_openfoodfacts, _fetch_upcitemdb, _fetch_bing_search):
+    for fetcher in (_fetch_barcodelist, _fetch_openfoodfacts, _fetch_upcitemdb, _fetch_bing_search, _fetch_duckduckgo_search):
         try:
             result = fetcher(barcode)
             if result:
@@ -2446,6 +2447,33 @@ def _fetch_bing_search(barcode):
                 return name[:60]
     except Exception as e:
         logger.warning("Bing搜索 查询 %s 异常: %s", barcode, e)
+    return None
+
+
+def _fetch_duckduckgo_search(barcode):
+    """DuckDuckGo 搜索 — 不封禁、覆盖中文搜索结果"""
+    try:
+        resp = requests.get(
+            f'https://html.duckduckgo.com/html/?q={barcode}',
+            timeout=8,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language': 'zh-CN,zh;q=0.9',
+            }
+        )
+        if resp.status_code != 200:
+            return None
+        html = resp.text
+        # DuckDuckGo results in <a class="result__a" href="...">标题</a>
+        matches = re.findall(r'class="result__a"[^>]*>(.*?)</a>', html, re.DOTALL)
+        for m in matches:
+            name = re.sub(r'<[^>]+>', '', m).strip()
+            # 过滤太短或明显不是商品名的结果
+            if len(name) >= 5 and '条码' not in name and 'barcode' not in name.lower():
+                logger.info("DuckDuckGo搜索 查到 %s → %s", barcode, name[:60])
+                return name[:60]
+    except Exception as e:
+        logger.warning("DuckDuckGo搜索 查询 %s 异常: %s", barcode, e)
     return None
 
 
