@@ -1,7 +1,29 @@
 <view class="container">
-  <view class="scan-section" bindtap="scanBarcode">
-    <text class="scan-icon">📷</text>
-    <text class="scan-text">扫码识别商品</text>
+  <!-- 双识别入口 -->
+  <view class="scan-row">
+    <view class="scan-section" bindtap="scanBarcode">
+      <text class="scan-icon">📷</text>
+      <text class="scan-text">扫码识别商品</text>
+    </view>
+    <view class="scan-section scan-ai" bindtap="aiRecognize">
+      <text class="scan-icon">🤖</text>
+      <text class="scan-text">拍照识别商品</text>
+    </view>
+  </view>
+
+  <!-- AI 识别 loading -->
+  <view class="ai-loading" wx:if="{{aiLoading}}">
+    <view class="ai-loading-inner">
+      <text class="ai-loading-icon">🤖</text>
+      <text class="ai-loading-text">AI 正在识别商品...</text>
+      <view class="ai-loading-bar"><view class="ai-loading-fill"></view></view>
+    </view>
+  </view>
+
+  <!-- 识别图片预览 -->
+  <view class="preview-row" wx:if="{{imagePreview}}">
+    <image class="preview-img" src="{{imagePreview}}" mode="aspectFill" />
+    <text class="preview-hint">已拍照，AI 识别结果见下方</text>
   </view>
 
   <view class="form-card" wx:if="{{barcode}}">

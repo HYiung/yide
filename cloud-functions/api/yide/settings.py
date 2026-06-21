@@ -53,6 +53,12 @@ WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
 # 店长入口密码（访问收银台 + 管理后台）
 SHOPKEEPER_PASSWORD = os.environ.get('SHOPKEEPER_PASSWORD', 'yide888')
 
+# AI 视觉识别配置（商品拍照识别）
+# 兼容 OpenAI 格式的 API（OpenAI、Azure、本地模型等）
+AI_VISION_API_KEY = os.environ.get('AI_VISION_API_KEY', '')
+AI_VISION_BASE_URL = os.environ.get('AI_VISION_BASE_URL', 'https://api.openai.com/v1')
+AI_VISION_MODEL = os.environ.get('AI_VISION_MODEL', 'gpt-4o')
+
 # Application definition
 
 INSTALLED_APPS = [

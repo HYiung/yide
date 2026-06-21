@@ -30,4 +30,7 @@ urlpatterns = [
     path('api/today_detail/', views.today_detail, name='today_detail'),  # 今日销售明细（弹窗用）
     path('api/auto_categorize/', views.auto_categorize_products, name='auto_categorize'),  # 一键自动分类
     path('api/seed_products/', views.seed_sample_products, name='seed_products'),  # 一键部署示例商品
+    path('api/ai_recognize/', views.ai_recognize_product, name='ai_recognize'),  # AI 视觉识别商品
+    # 微信域名所有权验证（MP 验证文件）
+    path('79fd0c008639aab602732813e35d784f.txt', views.wechat_verify, name='wechat_verify'),
 ]

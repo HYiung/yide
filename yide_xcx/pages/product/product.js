@@ -8,7 +8,10 @@ Page({
     stock: 1,
     category: 'others',
     currentStock: null,
-    submitting: false
+    submitting: false,
+    // AI 识别状态
+    aiLoading: false,
+    imagePreview: ''
   },
 
   selectCategory: function(e) {
@@ -29,9 +32,10 @@ Page({
     }
   },
 
+  /* ─── 扫码识别（已有） ─── */
   scanBarcode: function() {
     wx.scanCode({
-      scanType: ['barCode', 'qrCode'], // 明确指定扫描条码和二维码
+      scanType: ['barCode', 'qrCode'],
       success: (res) => {
         const code = (res.result || '').trim();
         console.log('扫码原始数据：', code);
@@ -41,7 +45,8 @@ Page({
           price: '',
           stock: 1,
           category: 'others',
-          currentStock: null
+          currentStock: null,
+          imagePreview: '' // 清除拍照预览
         });
         if (code) {
           this.checkOldProduct(code);
@@ -78,6 +83,127 @@ Page({
     });
   },
 
+  /* ─── AI 拍照识别（新功能） ─── */
+  aiRecognize: function() {
+    const that = this;
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sourceType: ['camera', 'album'],
+      sizeType: ['compressed'], // 压缩，减少上传大小
+      success(res) {
+        const tempFile = res.tempFiles[0];
+        const tempPath = tempFile.tempFilePath;
+        console.log('拍照/选图成功：', tempPath, '大小:', tempFile.size);
+
+        // 显示预览
+        that.setData({
+          imagePreview: tempPath,
+          aiLoading: true
+        });
+
+        // 上传到后端识别
+        that._uploadForAI(tempPath);
+      },
+      fail(err) {
+        console.error('拍照/选图失败', err);
+        if (err.errMsg.indexOf('cancel') === -1) {
+          wx.showToast({ title: '获取图片失败', icon: 'none' });
+        }
+      }
+    });
+  },
+
+  _uploadForAI: function(filePath) {
+    const that = this;
+    wx.showLoading({ title: 'AI 识别中...' });
+
+    // 构建上传地址
+    const uploadUrl = api.BASE_URL + '/api/ai_recognize/';
+
+    wx.uploadFile({
+      url: uploadUrl,
+      filePath: filePath,
+      name: 'image',
+      timeout: 30000, // 30 秒超时
+      success(res) {
+        console.log('AI 识别响应：', res.statusCode, res.data);
+        try {
+          const data = JSON.parse(res.data);
+          if (data.status === 'success') {
+            that._fillAIResult(data);
+          } else {
+            wx.showToast({ title: data.msg || '识别失败', icon: 'none' });
+            that._resetAIState();
+          }
+        } catch (e) {
+          console.error('解析响应失败', e);
+          wx.showToast({ title: '识别结果解析失败', icon: 'none' });
+          that._resetAIState();
+        }
+      },
+      fail(err) {
+        console.error('上传识别失败', err);
+        wx.showToast({ title: '上传失败，请检查网络', icon: 'none' });
+        that._resetAIState();
+      },
+      complete() {
+        wx.hideLoading();
+        that.setData({ aiLoading: false });
+      }
+    });
+  },
+
+  // 填充 AI 识别结果到表单
+  _fillAIResult: function(data) {
+    const name = data.name || '';
+    const category = data.category || 'others';
+    const barcode = data.barcode || '';
+    const priceEstimate = data.price_estimate;
+
+    let setData = {
+      name: name,
+      category: category,
+      barcode: barcode,
+    };
+
+    // 如果有预估价格，填入
+    if (priceEstimate !== null && priceEstimate !== undefined) {
+      setData.price = String(priceEstimate);
+    }
+
+    // 如果已存在该商品，显示当前库存和价格
+    if (data.exists) {
+      setData.currentStock = data.current_stock;
+      setData.price = data.existing_price || setData.price;
+      // 用数据库名称覆盖 AI 识别（更准确）
+      if (data.existing_name) {
+        setData.name = data.existing_name;
+      }
+    }
+
+    this.setData(setData);
+
+    // 弹窗告知识别结果
+    const msg = data.exists
+      ? `已匹配到现有商品「${data.existing_name || name}」，确认后入库`
+      : `AI 识别为「${name || '未知商品'}」，请确认信息后入库`;
+
+    wx.showModal({
+      title: '✅ AI 识别完成',
+      content: msg,
+      showCancel: false
+    });
+  },
+
+  _resetAIState: function() {
+    this.setData({
+      aiLoading: false,
+      imagePreview: ''
+    });
+  },
+
+  /* ─── 入库提交 ─── */
   submitData: function() {
     if (this.data.submitting) return;
 
@@ -87,7 +213,7 @@ Page({
     const stock = Number(this.data.stock);
 
     if (!barcode) {
-      wx.showToast({ title: '请先扫码', icon: 'none' });
+      wx.showToast({ title: '请先扫码或拍照识别', icon: 'none' });
       return;
     }
     if (!name || !Number.isFinite(price)) {
@@ -123,7 +249,7 @@ Page({
           content: `当前总库存：${data.current_stock}`,
           showCancel: false,
           success: () => {
-            this.setData({ barcode: '', name: '', price: '', stock: 1, category: 'others', currentStock: null });
+            this.setData({ barcode: '', name: '', price: '', stock: 1, category: 'others', currentStock: null, imagePreview: '' });
           }
         });
       } else {

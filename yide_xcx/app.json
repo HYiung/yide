@@ -14,5 +14,10 @@
   "lazyCodeLoading": "requiredComponents",
   "usingComponents": {
     "custom-tab-bar": "/components/custom-tab-bar/index"
+  },
+  "permission": {
+    "scope.camera": {
+      "desc": "用于拍照识别商品"
+    }
   }
 }

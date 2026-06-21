@@ -1,5 +1,7 @@
+import base64
 import json
 import logging
+import re
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -735,7 +737,7 @@ MALL_HTML = """<!DOCTYPE html>
     color: var(--text);
     font-size: 14px;
     line-height: 1.5;
-    padding-bottom: calc(70px + var(--safe-bottom) + 44px);
+    padding-bottom: calc(72px + var(--safe-bottom));
     -webkit-font-smoothing: antialiased;
   }
 
@@ -959,10 +961,10 @@ MALL_HTML = """<!DOCTYPE html>
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: 24px; /* sits just above the always-visible shopkeeper-bar */
     background: var(--card-bg);
     box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
-    padding: 8px 16px calc(8px + var(--safe-bottom));
+    padding: 6px 16px;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -970,6 +972,22 @@ MALL_HTML = """<!DOCTYPE html>
     transition: transform 0.3s;
   }
   .cart-bar.hidden { transform: translateY(100%); }
+
+  /* ===== Always-visible bottom bar (到店取货) ===== */
+  .shopkeeper-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
+    text-align: center;
+    padding: 3px 16px calc(3px + var(--safe-bottom));
+    color: var(--text-secondary);
+    font-size: 11px;
+    z-index: 490;
+    line-height: 1.4;
+  }
   .cart-info {
     flex: 1;
     display: flex;
@@ -1274,14 +1292,6 @@ MALL_HTML = """<!DOCTYPE html>
   }
   .toast.show { opacity: 1; }
 
-  /* ===== Footer ===== */
-  .shopkeeper-bar {
-    text-align: center;
-    padding: 20px 16px calc(16px + var(--safe-bottom));
-    color: var(--text-secondary);
-    font-size: 12px;
-  }
-
   /* ===== Offline Banner ===== */
   .offline-banner {
     background: #fff3cd;
@@ -1371,7 +1381,7 @@ MALL_HTML = """<!DOCTYPE html>
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Bottom Cart Bar -->
+<!-- Bottom Cart Bar (fixed, shows when cart has items) -->
 <div class="cart-bar hidden" id="cartBar">
   <div class="cart-info" id="cartBarInfo">
     <div class="cart-icon-wrap">
@@ -1386,10 +1396,8 @@ MALL_HTML = """<!DOCTYPE html>
   <button class="settle-btn" id="settleBtn">去结算</button>
 </div>
 
-<!-- Shopkeeper Entrance -->
-<div class="shopkeeper-bar">
-  🏪 到店取货 · 提交后到柜台报姓名付款取货
-</div>
+<!-- Shopkeeper Entrance (always visible at bottom) -->
+<div class="shopkeeper-bar">🏪 到店取货 · 提交后到柜台报姓名付款取货</div>
 
 <script>
 // ============================================================
@@ -2303,6 +2311,173 @@ def get_today_stats(request):
     })
 
 
+# ─── AI 视觉识别商品 ─────────────────────────────────────
+@csrf_exempt
+def ai_recognize_product(request):
+    """
+    接收小程序上传的图片，调用视觉 AI 识别商品信息。
+    返回建议的 name / category / barcode / price_estimate。
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'fail', 'msg': '仅支持 POST'})
+
+    api_key = getattr(settings, 'AI_VISION_API_KEY', '')
+    base_url = getattr(settings, 'AI_VISION_BASE_URL', 'https://api.openai.com/v1')
+    model = getattr(settings, 'AI_VISION_MODEL', 'gpt-4o')
+
+    if not api_key:
+        logger.warning("AI_VISION_API_KEY 未配置，跳过视觉识别")
+        return JsonResponse({
+            'status': 'fail',
+            'msg': 'AI 视觉识别未配置，请在环境变量中设置 AI_VISION_API_KEY'
+        })
+
+    # 获取上传的图片文件
+    image_file = request.FILES.get('image')
+    if not image_file:
+        return JsonResponse({'status': 'fail', 'msg': '请上传商品图片'})
+
+    # 限制文件大小（最大 10MB）
+    if image_file.size > 10 * 1024 * 1024:
+        return JsonResponse({'status': 'fail', 'msg': '图片太大，请压缩后上传（最大 10MB）'})
+
+    try:
+        # 读取图片并转 base64
+        image_data = image_file.read()
+        image_b64 = base64.b64encode(image_data).decode('utf-8')
+        content_type = image_file.content_type or 'image/jpeg'
+
+        # 构造视觉 AI 请求
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json',
+        }
+
+        # 分类映射：让 AI 输出英文分类 key
+        category_options = ['books', 'pens', 'papers', 'stationery', 'correction', 'others']
+        category_desc = '名著书籍, 书写工具, 本册纸品, 学生文具, 修正粘合, 其他用品'
+
+        payload = {
+            'model': model,
+            'messages': [
+                {
+                    'role': 'system',
+                    'content': (
+                        '你是一个文具书店的商品识别助手。根据用户提供的商品图片，'
+                        '识别出商品信息并以 JSON 格式返回。'
+                        '注意：如果你在图片中看到条形码或二维码，请读出其中的数字/字母作为 barcode。'
+                    )
+                },
+                {
+                    'role': 'user',
+                    'content': [
+                        {
+                            'type': 'text',
+                            'text': (
+                                '请仔细查看这张商品图片，返回以下 JSON 字段（只输出 JSON，不要多余文字）：\n'
+                                '{\n'
+                                f'  "name": "商品名称（中文，简洁准确）",\n'
+                                f'  "category": "分类英文key，从 {category_options} 中选择，含义：{category_desc}",\n'
+                                f'  "barcode": "如果图片中有条码或二维码，填写识别出的内容，否则留空字符串",\n'
+                                f'  "price_estimate": 预估售价（整数元，如不确定填 null）\n'
+                                f'}}\n'
+                                '注意：category 必须从上述列表中选一个，不确定填 "others"。'
+                            )
+                        },
+                        {
+                            'type': 'image_url',
+                            'image_url': {
+                                'url': f'data:{content_type};base64,{image_b64}'
+                            }
+                        }
+                    ]
+                }
+            ],
+            'max_tokens': 500,
+            'temperature': 0.1,
+        }
+
+        # 去掉 base_url 尾部斜杠
+        api_base = base_url.rstrip('/')
+        response = requests.post(
+            f'{api_base}/chat/completions',
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            logger.error("AI 视觉 API 返回异常: %s %s", response.status_code, response.text[:500])
+            return JsonResponse({
+                'status': 'fail',
+                'msg': f'AI 识别服务暂时不可用（{response.status_code}）'
+            })
+
+        result = response.json()
+        content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+
+        # 尝试从返回内容中提取 JSON
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if not json_match:
+            logger.error("AI 返回无法解析: %s", content[:300])
+            return JsonResponse({
+                'status': 'fail',
+                'msg': 'AI 未能识别该商品，请换个角度或手动录入'
+            })
+
+        try:
+            recognized = json.loads(json_match.group())
+        except json.JSONDecodeError:
+            logger.error("JSON 解析失败: %s", content[:300])
+            return JsonResponse({
+                'status': 'fail',
+                'msg': '识别结果解析失败，请手动录入'
+            })
+
+        name = (recognized.get('name') or '').strip()
+        category = (recognized.get('category') or 'others').strip().lower()
+        barcode = (recognized.get('barcode') or '').strip()
+        price_estimate = recognized.get('price_estimate')
+
+        # 校验分类
+        if category not in category_options:
+            category = 'others'
+
+        # 如果已有同名商品，尝试补全信息
+        existing = None
+        if name:
+            existing = Product.objects.filter(name__icontains=name).first()
+        if not existing and barcode:
+            existing = Product.objects.filter(barcode=barcode).first()
+
+        result_data = {
+            'status': 'success',
+            'name': name,
+            'category': category,
+            'barcode': barcode,
+            'price_estimate': price_estimate,
+        }
+
+        if existing:
+            result_data['exists'] = True
+            result_data['current_stock'] = existing.stock
+            result_data['existing_price'] = str(existing.price)
+            # AI 识别名称用作参考，但优先用数据库中的
+            if not name:
+                result_data['name'] = existing.name
+            result_data['existing_name'] = existing.name
+
+        logger.info("AI 识别结果: name=%s category=%s barcode=%s", name, category, barcode)
+        return JsonResponse(result_data, json_dumps_params={'ensure_ascii': False})
+
+    except requests.Timeout:
+        logger.error("AI 视觉 API 超时")
+        return JsonResponse({'status': 'fail', 'msg': 'AI 识别超时，请重试'})
+    except Exception as e:
+        logger.error("AI 视觉识别异常: %s", e, exc_info=True)
+        return JsonResponse({'status': 'fail', 'msg': '识别出错，请手动录入'})
+
+
 # 小程序扫码入库（适合日常补货/新书上架）
 def quick_add_product(request):
     barcode = request.GET.get('barcode')
@@ -2910,3 +3085,8 @@ def health_check(request):
         diagnostics['database'] = f'error: {e}'
 
     return JsonResponse(diagnostics)
+
+
+def wechat_verify(request):
+    """微信域名所有权验证（MP 验证文件）"""
+    return HttpResponse('c7075ba1e65258ad0c0c1ecb9f9bc774021f57bc', content_type='text/plain; charset=utf-8')
