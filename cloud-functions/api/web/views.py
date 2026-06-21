@@ -739,6 +739,10 @@ MALL_HTML = """<!DOCTYPE html>
     line-height: 1.5;
     padding-bottom: calc(72px + var(--safe-bottom));
     -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
   }
 
   /* ===== Header ===== */
@@ -1049,9 +1053,10 @@ MALL_HTML = """<!DOCTYPE html>
     z-index: 600;
     opacity: 0;
     visibility: hidden;
+    pointer-events: none;  /* 防止隐藏时拦截触摸 */
     transition: all 0.25s;
   }
-  .overlay.show { opacity: 1; visibility: visible; }
+  .overlay.show { opacity: 1; visibility: visible; pointer-events: auto; }
 
   .cart-panel {
     position: fixed;
@@ -1441,6 +1446,15 @@ function saveCart() {
 }
 function loadCart() {
   try { var v = localStorage.getItem('mall_cart'); state.cart = v ? JSON.parse(v) : []; } catch(e) { state.cart = []; }
+  // 防御性清理：确保每个商品都有有效字段
+  try {
+    state.cart = (state.cart || []).filter(function(item) {
+      return item && typeof item.id === 'number' && typeof item.name === 'string' && typeof item.num === 'number' && item.num > 0;
+    }).map(function(item) {
+      return { id: item.id, name: item.name, price: Number(item.price || 0), num: Math.min(item.num, 999), stock: item.stock || 999, category: item.category || 'others', productEmoji: item.productEmoji || '📦', categoryColor: item.categoryColor || '#c0c0c0' };
+    });
+    saveCart();
+  } catch(e) { state.cart = []; }
 }
 
 var EMOJI_MAP = [
@@ -1771,6 +1785,7 @@ function toggleCart() {
   state.cartOpen = !state.cartOpen;
   document.getElementById('cartOverlay').className = 'overlay' + (state.cartOpen ? ' show' : '');
   document.getElementById('cartPanel').className = 'cart-panel' + (state.cartOpen ? ' show' : '');
+  document.body.style.overflow = state.cartOpen ? 'hidden' : '';
   if (state.cartOpen) renderCartList();
 }
 
@@ -1836,12 +1851,14 @@ function openOrder() {
   document.getElementById('orderSubmit').disabled = false;
   document.getElementById('orderSubmit').textContent = '✅ 提交订单';
   state.submitting = false;
+  document.body.style.overflow = 'hidden';
 }
 
 function closeOrder() {
   state.orderOpen = false;
   document.getElementById('orderOverlay').className = 'overlay';
   document.getElementById('orderPanel').className = 'modal-panel';
+  document.body.style.overflow = '';
 }
 
 function submitOrder() {
@@ -2113,15 +2130,39 @@ def cashier_logout(request):
 
 
 # API 接口：根据条码查商品
+def _estimate_price_from_db(name):
+    """从数据库中类似商品估算价格，返回 Decimal 或 None"""
+    if not name:
+        return None
+    try:
+        # 提取关键词（取前6个字）
+        keywords = name[:6]
+        similar = Product.objects.filter(name__icontains=keywords, price__gt=0)
+        if similar.exists():
+            from django.db.models import Avg
+            avg = similar.aggregate(avg_price=Avg('price'))['avg_price']
+            if avg:
+                return round(float(avg), 2)
+    except Exception:
+        pass
+    return None
+
+
 def _lookup_barcode_external(barcode):
     """
     条码不在本地库时，尝试从外部开放 API 查询商品信息。
     返回 dict 或 None。
     """
     barcode = barcode.strip()
+    price_estimate = None
+    full_name = None
+    category_hint = 'others'
 
-    # 1) ISBN 类（978/979 开头共 13 位）→ Open Library API（免费、无需密钥）
+    # 1) ISBN 类（978/979 开头共 13 位）
     if (barcode.startswith('978') or barcode.startswith('979')) and len(barcode) == 13:
+        category_hint = 'books'
+
+        # 1a) Open Library API（免费、无需密钥 → 查书名+作者）
         try:
             url = f'https://openlibrary.org/isbn/{barcode}.json'
             resp = requests.get(url, timeout=8)
@@ -2145,21 +2186,49 @@ def _lookup_barcode_external(barcode):
                 if author_str:
                     full_name = f'{title}（{author_str}）'
                 logger.info("OpenLibrary 查到 ISBN %s → %s", barcode, full_name)
-                return {
-                    'name': full_name,
-                    'category': 'books',   # ISBN 一定是书
-                    'barcode': barcode,
-                    'price_estimate': None,
-                }
         except requests.Timeout:
             logger.warning("OpenLibrary 查询 %s 超时", barcode)
         except Exception as e:
             logger.warning("OpenLibrary 查询 %s 异常: %s", barcode, e)
 
+        # 1b) Google Books API（公共端点，无 key 可用但有限额）
+        try:
+            gb_url = f'https://www.googleapis.com/books/v1/volumes?q=isbn:{barcode}'
+            gb_resp = requests.get(gb_url, timeout=8)
+            if gb_resp.status_code == 200:
+                gb_data = gb_resp.json()
+                items = gb_data.get('items', [])
+                if items:
+                    vol = items[0].get('volumeInfo', {})
+                    if not full_name:
+                        gb_title = vol.get('title', '')
+                        gb_authors = vol.get('authors', [])
+                        if gb_title:
+                            full_name = gb_title
+                            if gb_authors:
+                                full_name = f'{gb_title}（{" / ".join(gb_authors)}）'
+                    # 尝试获取零售价
+                    sale_info = items[0].get('saleInfo', {})
+                    if sale_info.get('isEbook') or sale_info.get('saleability') != 'NOT_FOR_SALE':
+                        list_price = sale_info.get('listPrice', {})
+                        if list_price.get('amount'):
+                            price_estimate = round(float(list_price['amount']), 2)
+                            logger.info("GoogleBooks 查到 %s 定价: %s", barcode, price_estimate)
+        except Exception as e:
+            logger.warning("GoogleBooks 查询 %s 异常: %s", barcode, e)
+
+        if full_name:
+            return {
+                'name': full_name,
+                'category': category_hint,
+                'barcode': barcode,
+                'price_estimate': price_estimate,
+            }
+
     # 2) 通用条码 → barcode-list.com 免费 API（无密钥，有频率限制）
     try:
         url = f'https://barcode-list.com/api/v2/barcode/{barcode}'
-        resp = requests.get(url, timeout=8, headers={'User-Agent': 'yide-bookstore/1.0'})
+        resp = requests.get(url, timeout=8, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
         if resp.status_code == 200:
             data = resp.json()
             if data.get('status') == 'ok' and data.get('product'):
@@ -2175,7 +2244,7 @@ def _lookup_barcode_external(barcode):
                     'name': name if name else None,
                     'category': 'others',
                     'barcode': barcode,
-                    'price_estimate': None,
+                    'price_estimate': _estimate_price_from_db(name),
                 }
     except Exception as e:
         logger.warning("BarcodeList.com 查询 %s 异常: %s", barcode, e)
@@ -2417,9 +2486,11 @@ def ai_recognize_product(request):
     if not image_file:
         return JsonResponse({'status': 'fail', 'msg': '请上传商品图片'})
 
-    # 限制文件大小（最大 10MB）
-    if image_file.size > 10 * 1024 * 1024:
-        return JsonResponse({'status': 'fail', 'msg': '图片太大，请压缩后上传（最大 10MB）'})
+    # 限制文件大小（最大 5MB，考虑 EdgeOne SCF 限制）
+    max_size = 5 * 1024 * 1024
+    if image_file.size > max_size:
+        logger.warning("图片太大: %d bytes (max %d)", image_file.size, max_size)
+        return JsonResponse({'status': 'fail', 'msg': '图片太大，请压缩后上传（最大 5MB）'})
 
     try:
         # 读取图片并转 base64

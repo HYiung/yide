@@ -246,5 +246,9 @@
   margin-top: 6rpx !important;
   font-weight: 600 !important;
   border: none !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   box-shadow: 0 2rpx 8rpx rgba(7, 193, 96, 0.3) !important;
 }

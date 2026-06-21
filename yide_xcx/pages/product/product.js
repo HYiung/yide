@@ -122,8 +122,9 @@ Page({
     });
   },
 
-  _uploadForAI: function(filePath) {
+  _uploadForAI: function(filePath, retryCount) {
     const that = this;
+    retryCount = retryCount || 0;
     this.setData({ aiStatus: '🤖 AI 正在识别商品...' });
     wx.showLoading({ title: 'AI 识别中...' });
 
@@ -137,6 +138,12 @@ Page({
       timeout: 60000, // 60 秒超时（AI 视觉识别可能较慢）
       success(res) {
         console.log('AI 识别响应：', res.statusCode, (res.data || '').slice(0, 200));
+        if (res.statusCode === 413) {
+          that.setData({ aiStatus: '❌ 图片太大，请压缩后重试' });
+          wx.showToast({ title: '图片太大', icon: 'none', duration: 3000 });
+          that._resetAIState();
+          return;
+        }
         try {
           const data = JSON.parse(res.data);
           if (data.status === 'success') {
@@ -155,9 +162,22 @@ Page({
         }
       },
       fail(err) {
-        console.error('上传识别失败', err);
-        that.setData({ aiStatus: '❌ 上传失败，请检查网络后重试' });
-        wx.showToast({ title: '上传失败，请检查网络', icon: 'none', duration: 3000 });
+        console.error('上传识别失败', err, '重试次数:', retryCount);
+        // 自动重试一次（网络波动）
+        if (retryCount < 1 && err.errMsg && err.errMsg.indexOf('timeout') === -1) {
+          console.log('正在重试上传...');
+          that.setData({ aiStatus: '🤖 上传失败，正在重试...' });
+          setTimeout(function() {
+            that._uploadForAI(filePath, retryCount + 1);
+          }, 1000);
+          return;
+        }
+        var errMsg = '上传失败，请检查网络后重试';
+        if (err.errMsg && err.errMsg.indexOf('timeout') > -1) {
+          errMsg = '上传超时，请稍后重试';
+        }
+        that.setData({ aiStatus: '❌ ' + errMsg });
+        wx.showToast({ title: errMsg, icon: 'none', duration: 3000 });
         that._resetAIState();
       },
       complete() {
