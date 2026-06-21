@@ -513,9 +513,10 @@ function processBarcode(code) {
   fetchWithTimeout(url).then(function (r) { return r.json(); }).then(function (d) {
     if (d.status === 'success') {
       var tag = isCheckOnly ? '<span class="tag">仅查价</span>' : '<span class="tag">已录入</span>';
+      var price = d.price || d.price_estimate || '';
       pName.innerHTML = d.name + ' ' + tag;
-      pPrice.textContent = '￥' + d.price;
-      speakText(d.name + '，' + d.price + '元');
+      pPrice.textContent = price ? ('￥' + price) : ('（无定价）');
+      speakText(d.name + '，' + (price || '待定价') + '元');
       if (!isCheckOnly) {
         initCartSummary();  // 从服务端全量同步，确保件数/总价/记录列表一致
       }
@@ -1974,13 +1975,21 @@ document.addEventListener('DOMContentLoaded', init);
 
 def mall_home(request):
     from django.http import HttpResponse
-    return HttpResponse(MALL_HTML)
+    response = HttpResponse(MALL_HTML)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 def cash_register(request):
     if not request.user.is_authenticated or not request.user.is_staff:
         return redirect('cashier_login')
-    return HttpResponse(CASHIER_HTML)
+    response = HttpResponse(CASHIER_HTML)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 # ============================================================
@@ -2121,7 +2130,11 @@ def cashier_login(request):
 
         return redirect('/cashier/login/?error=1')
 
-    return HttpResponse(CASHIER_LOGIN_HTML)
+    response = HttpResponse(CASHIER_LOGIN_HTML)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 def cashier_logout(request):
@@ -2248,6 +2261,31 @@ def _lookup_barcode_external(barcode):
                 }
     except Exception as e:
         logger.warning("BarcodeList.com 查询 %s 异常: %s", barcode, e)
+
+    # 3) 通用条码 → Open Food Facts 免费 API（无密钥、覆盖广，非食品也能查到）
+    try:
+        off_url = f'https://world.openfoodfacts.org/api/v2/product/{barcode}.json'
+        off_resp = requests.get(off_url, timeout=8, headers={'User-Agent': 'YideBookstore/1.0'})
+        if off_resp.status_code == 200:
+            off_data = off_resp.json()
+            if off_data.get('status') == 1:  # 1 = found
+                p = off_data.get('product', {})
+                off_name = (p.get('product_name') or p.get('generic_name') or '').strip()
+                off_brand = (p.get('brands') or '').strip()
+                if off_name and off_brand:
+                    off_name = f'{off_brand} {off_name}'
+                elif off_brand:
+                    off_name = off_brand
+                if off_name:
+                    logger.info("OpenFoodFacts 查到 %s → %s", barcode, off_name)
+                    return {
+                        'name': off_name,
+                        'category': 'others',
+                        'barcode': barcode,
+                        'price_estimate': _estimate_price_from_db(off_name),
+                    }
+    except Exception as e:
+        logger.warning("OpenFoodFacts 查询 %s 异常: %s", barcode, e)
 
     return None
 
