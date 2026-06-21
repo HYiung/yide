@@ -96,6 +96,9 @@ CASHIER_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>一得书苑 · 收银台 + 看板</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
@@ -723,6 +726,9 @@ MALL_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>一得书苑 · 线上商城</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2017,6 +2023,9 @@ CASHIER_LOGIN_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>一得书苑 · 店长入口</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2232,12 +2241,14 @@ def _lookup_barcode_external(barcode):
 
     # ── 通用条码：并行查多个数据源，取最先查到结果的 ──
     try:
-        with ThreadPoolExecutor(max_workers=3) as ex:
+        with ThreadPoolExecutor(max_workers=4) as ex:
             futures = {
                 ex.submit(_fetch_barcodelist, barcode): 1,
                 ex.submit(_fetch_openfoodfacts, barcode): 2,
+                ex.submit(_fetch_upcitemdb, barcode): 3,
+                ex.submit(_fetch_bing_search, barcode): 4,
             }
-            for future in as_completed(futures, timeout=15):
+            for future in as_completed(futures, timeout=20):
                 result = future.result()
                 if result:
                     return {
@@ -2250,7 +2261,7 @@ def _lookup_barcode_external(barcode):
         pass
 
     # 降级：串行尝试
-    for fetcher in (_fetch_barcodelist, _fetch_openfoodfacts):
+    for fetcher in (_fetch_barcodelist, _fetch_openfoodfacts, _fetch_upcitemdb, _fetch_bing_search):
         try:
             result = fetcher(barcode)
             if result:
@@ -2383,6 +2394,58 @@ def _fetch_openfoodfacts(barcode):
         return result
     except Exception as e:
         logger.warning("OpenFoodFacts 查询 %s 异常: %s", barcode, e)
+    return None
+
+
+def _fetch_upcitemdb(barcode):
+    """upcitemdb.com — 免费 trial API（覆盖全球，有限额）"""
+    try:
+        resp = requests.get(
+            f'https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}',
+            timeout=8,
+            headers={'User-Agent': 'YideBookstore/1.0'}
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        items = data.get('items', [])
+        if items:
+            title = (items[0].get('title') or '').strip()
+            if title:
+                logger.info("UPCItemDB 查到 %s → %s", barcode, title)
+                return title
+    except Exception as e:
+        logger.warning("UPCItemDB 查询 %s 异常: %s", barcode, e)
+    return None
+
+
+def _fetch_bing_search(barcode):
+    """Bing 搜索 — 作为最后手段，从搜索结果中解析商品名"""
+    try:
+        resp = requests.get(
+            f'https://www.bing.com/search?q={barcode}',
+            timeout=8,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language': 'zh-CN,zh;q=0.9',
+            }
+        )
+        if resp.status_code != 200:
+            return None
+        html = resp.text
+        # Bing 搜索结果通常在 <h2><a href="...">标题</a></h2> 中
+        import re
+        # 找第一个非广告、非购物结果的标题
+        matches = re.findall(r'<h2>.*?<a[^>]*>(.*?)</a>.*?</h2>', html, re.DOTALL)
+        for m in matches:
+            # 清理 HTML 标签
+            name = re.sub(r'<[^>]+>', '', m).strip()
+            # 至少5个字符才可能是商品名
+            if len(name) >= 5 and '条码' not in name:
+                logger.info("Bing搜索 查到 %s → %s", barcode, name[:60])
+                return name[:60]
+    except Exception as e:
+        logger.warning("Bing搜索 查询 %s 异常: %s", barcode, e)
     return None
 
 
