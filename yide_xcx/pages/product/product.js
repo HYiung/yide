@@ -9,6 +9,9 @@ Page({
     category: 'others',
     currentStock: null,
     submitting: false,
+    // 扫码查询状态
+    scanLoading: false,
+    scanStatus: '',    // "正在查询..." / "查询超时" / "查到外部数据" 等
     // AI 识别状态
     aiLoading: false,
     imagePreview: '',
@@ -48,7 +51,9 @@ Page({
           category: 'others',
           currentStock: null,
           imagePreview: '',
-          aiStatus: ''
+          aiStatus: '',
+          scanLoading: false,
+          scanStatus: ''
         });
         if (code) {
           this.checkOldProduct(code);
@@ -63,30 +68,74 @@ Page({
 
   // 检查是否是库里已有的商品（或外部 API 查到）
   checkOldProduct: function(code) {
+    const that = this;
+    var timedOut = false;
+    var statusTimer = null;
+
+    // 显示加载状态 + 渐进式提示（本地快 → 外部慢）
+    this.setData({ scanLoading: true, scanStatus: '📡 正在查询本地商品库...' });
+    statusTimer = setTimeout(function () {
+      if (!timedOut) {
+        that.setData({ scanStatus: '🌐 本地未匹配，正在查询外部数据库（约 20 秒）...' });
+      }
+    }, 2000);
+    // 如果超过 8 秒还没回来，再提示一次
+    var longTimer = setTimeout(function () {
+      if (!timedOut) {
+        that.setData({ scanStatus: '⏳ 外部查询中，数据源较多请稍候...' });
+      }
+    }, 8000);
+
     api.request({
       url: '/get_product_by_barcode/',
-      data: { barcode: code }
+      data: { barcode: code },
+      timeout: 25000  // 外部查询最多需 20 秒，给 25 秒超时
     }).then((data) => {
+      timedOut = true;
+      clearTimeout(statusTimer);
+      clearTimeout(longTimer);
+
       if (data.status === 'success') {
         const category = data.category || 'others';
+        const price = data.price || data.price_estimate || '';
         const setData = {
           name: data.name,
-          price: data.price || data.price_estimate || '',
+          price: price,
           category: category,
-          currentStock: data.stock ?? null
+          currentStock: data.stock ?? null,
+          scanLoading: false,
+          scanStatus: data.from_db
+            ? '✅ 已匹配到库内商品'
+            : (price ? '✅ 已从外部查到商品信息' : '✅ 已从外部查到商品名称，请补充价格'),
         };
-        this.setData(setData);
-        if (data.from_db) {
-          wx.showToast({ title: '已匹配到库内商品', icon: 'none' });
-        } else {
-          wx.showToast({ title: '已从外部查询到商品信息，确认后入库', icon: 'none', duration: 3000 });
-        }
+        that.setData(setData);
+        wx.showToast({
+          title: data.from_db ? '已匹配到库内商品' : '已查到外部商品信息',
+          icon: 'none', duration: 3000
+        });
       } else {
-        wx.showToast({ title: '新商品，请录入信息', icon: 'none' });
+        that.setData({
+          scanLoading: false,
+          scanStatus: '💡 新商品，请手动录入信息',
+        });
+        wx.showToast({ title: data.msg || '新商品，请录入信息', icon: 'none', duration: 3000 });
       }
     }).catch((err) => {
+      timedOut = true;
+      clearTimeout(statusTimer);
+      clearTimeout(longTimer);
       console.error('查找商品失败', err);
-      wx.showToast({ title: '查找失败，请检查网络', icon: 'none' });
+      var isTimeout = err && (err.errMsg || '').indexOf('timeout') > -1;
+      that.setData({
+        scanLoading: false,
+        scanStatus: isTimeout
+          ? '⏰ 查询超时，请检查网络后扫码重试'
+          : '❌ 查询失败，请检查网络',
+      });
+      wx.showToast({
+        title: isTimeout ? '查询超时，请检查网络' : '查找失败，请检查网络',
+        icon: 'none', duration: 3000
+      });
     });
   },
 

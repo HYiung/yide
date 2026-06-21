@@ -11,6 +11,20 @@
     </view>
   </view>
 
+  <!-- 扫码查询 loading（渐进式提示） -->
+  <view class="scan-loading" wx:if="{{scanLoading}}">
+    <view class="scan-loading-inner">
+      <text class="scan-loading-icon">🔍</text>
+      <text class="scan-loading-text">{{scanStatus}}</text>
+      <view class="scan-loading-bar"><view class="scan-loading-fill"></view></view>
+    </view>
+  </view>
+
+  <!-- 扫码查询结果状态（持久显示，不一闪而过） -->
+  <view class="scan-status-bar" wx:if="{{scanStatus && !scanLoading}}">
+    <text class="scan-status-text">{{scanStatus}}</text>
+  </view>
+
   <!-- AI 识别 loading -->
   <view class="ai-loading" wx:if="{{aiLoading}}">
     <view class="ai-loading-inner">
