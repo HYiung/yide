@@ -46,7 +46,7 @@ export DJANGO_DEBUG="True"
 export CLOUD_DATABASE_URL="postgresql://user:pass@host/db"
 
 # 店长入口密码（收银台+管理后台）
-export SHOPKEEPER_PASSWORD="yide888"
+export SHOPKEEPER_PASSWORD="设定你的店长密码"
 
 # 微信小程序（可选，仅小程序需要）
 export WECHAT_APPID="你的小程序AppID"
@@ -86,7 +86,7 @@ python manage.py runserver 0.0.0.0:8000
 | `/admin/` | ⚙️ 管理后台 | 密码登录后自动登录 |
 | `/api/*` | 全部 API | 公开 |
 
-店长入口流程：商城页顶部 🔑 → 输入密码（默认 `yide888`）→ 自动登录 → 收银台
+店长入口流程：商城页顶部 🔑 → 输入密码→ 自动登录 → 收银台
 
 ## API 端点
 
