@@ -11,7 +11,8 @@ Page({
     submitting: false,
     // AI 识别状态
     aiLoading: false,
-    imagePreview: ''
+    imagePreview: '',
+    aiStatus: ''       // 持久状态文本（AI识别结果/错误信息）
   },
 
   selectCategory: function(e) {
@@ -46,7 +47,8 @@ Page({
           stock: 1,
           category: 'others',
           currentStock: null,
-          imagePreview: '' // 清除拍照预览
+          imagePreview: '',
+          aiStatus: ''
         });
         if (code) {
           this.checkOldProduct(code);
@@ -59,7 +61,7 @@ Page({
     });
   },
 
-  // 检查是否是库里已有的商品
+  // 检查是否是库里已有的商品（或外部 API 查到）
   checkOldProduct: function(code) {
     api.request({
       url: '/get_product_by_barcode/',
@@ -67,13 +69,18 @@ Page({
     }).then((data) => {
       if (data.status === 'success') {
         const category = data.category || 'others';
-        this.setData({
+        const setData = {
           name: data.name,
-          price: data.price,
-          currentStock: data.stock,
-          category: category
-        });
-        wx.showToast({ title: '匹配到旧商品', icon: 'none' });
+          price: data.price || data.price_estimate || '',
+          category: category,
+          currentStock: data.stock ?? null
+        };
+        this.setData(setData);
+        if (data.from_db) {
+          wx.showToast({ title: '已匹配到库内商品', icon: 'none' });
+        } else {
+          wx.showToast({ title: '已从外部查询到商品信息，确认后入库', icon: 'none', duration: 3000 });
+        }
       } else {
         wx.showToast({ title: '新商品，请录入信息', icon: 'none' });
       }
@@ -99,7 +106,8 @@ Page({
         // 显示预览
         that.setData({
           imagePreview: tempPath,
-          aiLoading: true
+          aiLoading: true,
+          aiStatus: ''
         });
 
         // 上传到后端识别
@@ -116,6 +124,7 @@ Page({
 
   _uploadForAI: function(filePath) {
     const that = this;
+    this.setData({ aiStatus: '🤖 AI 正在识别商品...' });
     wx.showLoading({ title: 'AI 识别中...' });
 
     // 构建上传地址
@@ -125,26 +134,30 @@ Page({
       url: uploadUrl,
       filePath: filePath,
       name: 'image',
-      timeout: 30000, // 30 秒超时
+      timeout: 60000, // 60 秒超时（AI 视觉识别可能较慢）
       success(res) {
-        console.log('AI 识别响应：', res.statusCode, res.data);
+        console.log('AI 识别响应：', res.statusCode, (res.data || '').slice(0, 200));
         try {
           const data = JSON.parse(res.data);
           if (data.status === 'success') {
             that._fillAIResult(data);
           } else {
-            wx.showToast({ title: data.msg || '识别失败', icon: 'none' });
+            const errMsg = data.msg || '识别失败';
+            that.setData({ aiStatus: '❌ ' + errMsg });
+            wx.showToast({ title: errMsg, icon: 'none', duration: 3000 });
             that._resetAIState();
           }
         } catch (e) {
-          console.error('解析响应失败', e);
-          wx.showToast({ title: '识别结果解析失败', icon: 'none' });
+          console.error('解析响应失败', e, '原始数据:', (res.data || '').slice(0, 300));
+          that.setData({ aiStatus: '❌ 识别结果解析失败，请手动录入' });
+          wx.showToast({ title: '识别结果解析失败', icon: 'none', duration: 3000 });
           that._resetAIState();
         }
       },
       fail(err) {
         console.error('上传识别失败', err);
-        wx.showToast({ title: '上传失败，请检查网络', icon: 'none' });
+        that.setData({ aiStatus: '❌ 上传失败，请检查网络后重试' });
+        wx.showToast({ title: '上传失败，请检查网络', icon: 'none', duration: 3000 });
         that._resetAIState();
       },
       complete() {
@@ -189,6 +202,8 @@ Page({
       ? `已匹配到现有商品「${data.existing_name || name}」，确认后入库`
       : `AI 识别为「${name || '未知商品'}」，请确认信息后入库`;
 
+    this.setData({ aiStatus: '✅ ' + (data.exists ? '已匹配 ' : 'AI 识别到 ') + (name || '商品') });
+
     wx.showModal({
       title: '✅ AI 识别完成',
       content: msg,
@@ -198,8 +213,8 @@ Page({
 
   _resetAIState: function() {
     this.setData({
-      aiLoading: false,
-      imagePreview: ''
+      aiLoading: false
+      // 保留 imagePreview 不清除，让用户看到之前拍的是哪张照片
     });
   },
 
@@ -249,7 +264,7 @@ Page({
           content: `当前总库存：${data.current_stock}`,
           showCancel: false,
           success: () => {
-            this.setData({ barcode: '', name: '', price: '', stock: 1, category: 'others', currentStock: null, imagePreview: '' });
+            this.setData({ barcode: '', name: '', price: '', stock: 1, category: 'others', currentStock: null, imagePreview: '', aiStatus: '' });
           }
         });
       } else {

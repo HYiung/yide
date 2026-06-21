@@ -2113,22 +2113,102 @@ def cashier_logout(request):
 
 
 # API 接口：根据条码查商品
+def _lookup_barcode_external(barcode):
+    """
+    条码不在本地库时，尝试从外部开放 API 查询商品信息。
+    返回 dict 或 None。
+    """
+    barcode = barcode.strip()
+
+    # 1) ISBN 类（978/979 开头共 13 位）→ Open Library API（免费、无需密钥）
+    if (barcode.startswith('978') or barcode.startswith('979')) and len(barcode) == 13:
+        try:
+            url = f'https://openlibrary.org/isbn/{barcode}.json'
+            resp = requests.get(url, timeout=8)
+            if resp.status_code == 200:
+                data = resp.json()
+                title = data.get('title', '')
+                authors = data.get('authors', [])
+                author_names = []
+                for a in authors:
+                    key = a.get('key', '')
+                    if key:
+                        try:
+                            a_resp = requests.get(f'https://openlibrary.org{key}.json', timeout=5)
+                            if a_resp.status_code == 200:
+                                a_data = a_resp.json()
+                                author_names.append(a_data.get('name', ''))
+                        except Exception:
+                            pass
+                author_str = ' / '.join(author_names) if author_names else ''
+                full_name = title
+                if author_str:
+                    full_name = f'{title}（{author_str}）'
+                logger.info("OpenLibrary 查到 ISBN %s → %s", barcode, full_name)
+                return {
+                    'name': full_name,
+                    'category': 'books',   # ISBN 一定是书
+                    'barcode': barcode,
+                    'price_estimate': None,
+                }
+        except requests.Timeout:
+            logger.warning("OpenLibrary 查询 %s 超时", barcode)
+        except Exception as e:
+            logger.warning("OpenLibrary 查询 %s 异常: %s", barcode, e)
+
+    # 2) 通用条码 → barcode-list.com 免费 API（无密钥，有频率限制）
+    try:
+        url = f'https://barcode-list.com/api/v2/barcode/{barcode}'
+        resp = requests.get(url, timeout=8, headers={'User-Agent': 'yide-bookstore/1.0'})
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get('status') == 'ok' and data.get('product'):
+                p = data['product']
+                name = (p.get('name') or '').strip()
+                brand = (p.get('brand') or '').strip()
+                if name and brand:
+                    name = f'{brand} {name}'
+                elif brand:
+                    name = brand
+                logger.info("BarcodeList.com 查到 %s → %s", barcode, name)
+                return {
+                    'name': name if name else None,
+                    'category': 'others',
+                    'barcode': barcode,
+                    'price_estimate': None,
+                }
+    except Exception as e:
+        logger.warning("BarcodeList.com 查询 %s 异常: %s", barcode, e)
+
+    return None
+
+
 def get_product_by_barcode(request):
     barcode = request.GET.get('barcode')
     if not barcode:
         return JsonResponse({'status': 'fail', 'msg': '条码不能为空'})
 
+    barcode = barcode.strip()
     product = Product.objects.filter(barcode=barcode).first()
-    if not product:
-        return JsonResponse({'status': 'fail', 'msg': '未找到商品'})
+    if product:
+        return JsonResponse({
+            'status': 'success',
+            'name': product.name,
+            'price': str(product.price),  # Decimal 需要转字符串
+            'stock': product.stock,
+            'category': product.category,  # 返回分类，让前端能回显
+            'from_db': True,
+        })
 
-    return JsonResponse({
-        'status': 'success',
-        'name': product.name,
-        'price': str(product.price),  # Decimal 需要转字符串
-        'stock': product.stock,
-        'category': product.category  # 返回分类，让前端能回显
-    })
+    # 本地没有 → 查外部 API
+    ext = _lookup_barcode_external(barcode)
+    if ext and ext.get('name'):
+        ext['status'] = 'success'
+        ext['from_db'] = False
+        ext['price_estimate'] = ext.get('price_estimate')
+        return JsonResponse(ext, json_dumps_params={'ensure_ascii': False})
+
+    return JsonResponse({'status': 'fail', 'msg': '未找到商品'})
 
 
 # 小程序获取当前清单的接口
@@ -2403,7 +2483,7 @@ def ai_recognize_product(request):
             f'{api_base}/chat/completions',
             headers=headers,
             json=payload,
-            timeout=30
+            timeout=60  # AI 视觉 API 可能较慢，给足 60 秒
         )
 
         if response.status_code != 200:

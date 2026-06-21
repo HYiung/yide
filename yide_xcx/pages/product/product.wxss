@@ -1,5 +1,5 @@
 .container {
-  padding: 10rpx 12rpx 140rpx;
+  padding: 8rpx 10rpx 140rpx;
   background-color: #f5f5f5;
   min-height: 100vh;
   box-sizing: border-box;
@@ -8,20 +8,20 @@
 /* 双识别入口 — 并排 */
 .scan-row {
   display: flex;
-  gap: 10rpx;
-  margin-bottom: 8rpx;
+  gap: 8rpx;
+  margin-bottom: 6rpx;
 }
 
 .scan-section {
   flex: 1;
   background: #fff;
-  border: 3rpx dashed #07c160;
-  border-radius: 14rpx;
-  height: 80rpx;
+  border: 2rpx dashed #07c160;
+  border-radius: 12rpx;
+  height: 64rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8rpx;
+  gap: 6rpx;
 }
 
 .scan-section:active {
@@ -37,11 +37,11 @@
 }
 
 .scan-icon {
-  font-size: 30rpx;
+  font-size: 26rpx;
 }
 
 .scan-text {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: #07c160;
   font-weight: 600;
 }
@@ -53,9 +53,9 @@
 /* AI 识别 loading 动画 */
 .ai-loading {
   background: #fff;
-  border-radius: 14rpx;
-  padding: 24rpx;
-  margin-bottom: 8rpx;
+  border-radius: 12rpx;
+  padding: 18rpx;
+  margin-bottom: 6rpx;
   box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
 }
 
@@ -63,11 +63,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10rpx;
+  gap: 8rpx;
 }
 
 .ai-loading-icon {
-  font-size: 40rpx;
+  font-size: 36rpx;
   animation: aiBounce 0.8s infinite alternate;
 }
 
@@ -77,14 +77,14 @@
 }
 
 .ai-loading-text {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: #1677ff;
   font-weight: 600;
 }
 
 .ai-loading-bar {
-  width: 200rpx;
-  height: 6rpx;
+  width: 160rpx;
+  height: 5rpx;
   background: #e8f0fe;
   border-radius: 3rpx;
   overflow: hidden;
@@ -103,27 +103,42 @@
   100% { transform: translateX(400%); }
 }
 
+/* AI 识别状态栏（持久显示） */
+.ai-status-bar {
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 8rpx;
+  padding: 8rpx 12rpx;
+  margin-bottom: 6rpx;
+}
+
+.ai-status-text {
+  font-size: 22rpx;
+  color: #ad8b00;
+  line-height: 1.5;
+}
+
 /* 拍照预览 */
 .preview-row {
   display: flex;
   align-items: center;
-  gap: 10rpx;
+  gap: 8rpx;
   background: #fff;
-  border-radius: 14rpx;
-  padding: 10rpx 14rpx;
-  margin-bottom: 8rpx;
+  border-radius: 12rpx;
+  padding: 8rpx 10rpx;
+  margin-bottom: 6rpx;
 }
 
 .preview-img {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 8rpx;
-  border: 2rpx solid #e8e8e8;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 6rpx;
+  border: 1px solid #e8e8e8;
   flex-shrink: 0;
 }
 
 .preview-hint {
-  font-size: 22rpx;
+  font-size: 20rpx;
   color: #999;
   flex: 1;
 }
@@ -131,19 +146,19 @@
 /* 表单卡片 */
 .form-card {
   background: #fff;
-  border-radius: 14rpx;
-  padding: 12rpx 14rpx;
+  border-radius: 12rpx;
+  padding: 8rpx 10rpx;
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.04);
 }
 
 .form-row {
-  margin-bottom: 8rpx;
+  margin-bottom: 6rpx;
 }
 
 .form-row-short {
   display: flex;
-  gap: 12rpx;
-  margin-bottom: 8rpx;
+  gap: 8rpx;
+  margin-bottom: 6rpx;
 }
 
 .fhalf {
@@ -151,39 +166,39 @@
 }
 
 .flabel {
-  font-size: 22rpx;
+  font-size: 20rpx;
   color: #888;
-  margin-bottom: 4rpx;
+  margin-bottom: 3rpx;
   display: block;
   font-weight: 500;
 }
 
 .finput {
-  height: 56rpx;
-  border: 2rpx solid #e8e8e8;
-  border-radius: 8rpx;
-  padding: 0 12rpx;
-  font-size: 28rpx;
+  height: 44rpx;
+  border: 1px solid #e8e8e8;
+  border-radius: 6rpx;
+  padding: 0 10rpx;
+  font-size: 24rpx;
   width: 100%;
   box-sizing: border-box;
   background: #fff;
 }
 
 .finput-disabled {
-  height: 52rpx;
+  height: 38rpx;
   background: #f7f7f7;
-  border-radius: 8rpx;
-  padding: 0 12rpx;
+  border-radius: 6rpx;
+  padding: 0 10rpx;
   color: #666;
-  line-height: 52rpx;
-  font-size: 24rpx;
-  border: 2rpx solid #eee;
+  line-height: 38rpx;
+  font-size: 22rpx;
+  border: 1px solid #eee;
 }
 
 .stock-tip {
   display: block;
-  margin-top: 2rpx;
-  font-size: 20rpx;
+  margin-top: 1rpx;
+  font-size: 18rpx;
   color: #07c160;
   font-weight: 600;
 }
@@ -194,18 +209,18 @@
   flex-direction: row;
   white-space: nowrap;
   overflow-x: auto;
-  padding: 4rpx 0;
+  padding: 2rpx 0;
 }
 
 .cat-scroll .cat-option {
   display: inline-block;
-  padding: 6rpx 14rpx;
-  margin-right: 8rpx;
-  border-radius: 20rpx;
+  padding: 4rpx 12rpx;
+  margin-right: 6rpx;
+  border-radius: 16rpx;
   background: #f5f5f5;
   color: #666;
-  font-size: 22rpx;
-  border: 2rpx solid transparent;
+  font-size: 20rpx;
+  border: 1px solid transparent;
   flex-shrink: 0;
 }
 
@@ -224,12 +239,12 @@
 .submit-btn {
   background: linear-gradient(135deg, #07c160, #06ad56) !important;
   color: #fff !important;
-  height: 60rpx !important;
-  line-height: 60rpx !important;
-  border-radius: 30rpx !important;
-  font-size: 26rpx !important;
-  margin-top: 8rpx !important;
+  height: 48rpx !important;
+  line-height: 48rpx !important;
+  border-radius: 24rpx !important;
+  font-size: 24rpx !important;
+  margin-top: 6rpx !important;
   font-weight: 600 !important;
   border: none !important;
-  box-shadow: 0 3rpx 12rpx rgba(7, 193, 96, 0.3) !important;
+  box-shadow: 0 2rpx 8rpx rgba(7, 193, 96, 0.3) !important;
 }

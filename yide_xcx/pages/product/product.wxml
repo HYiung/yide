@@ -26,6 +26,11 @@
     <text class="preview-hint">已拍照，AI 识别结果见下方</text>
   </view>
 
+  <!-- AI 识别状态（持久显示，不一闪而过） -->
+  <view class="ai-status-bar" wx:if="{{aiStatus && !aiLoading}}">
+    <text class="ai-status-text">{{aiStatus}}</text>
+  </view>
+
   <view class="form-card" wx:if="{{barcode}}">
     <view class="form-row">
       <text class="flabel">条形码</text>
