@@ -1,5 +1,4 @@
 <view class="container">
-  <view wx:if="{{_roleReady}}" style="width:100%;">
   <!-- 顶部绿色卡片：营收 + 搜索核销 -->
   <view class="today-card">
     <view class="stats-row">
@@ -118,7 +117,6 @@
       <button class="btn-checkout" bindtap="onFinish">收款完成</button>
     </view>
   </view>
-</view>
 </view>
 <!-- 自定义底部导航 -->
 <custom-tab-bar activeIndex="0" />

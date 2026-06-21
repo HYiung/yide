@@ -1,55 +1,9 @@
-// app.js
-const api = require('./utils/api.js');
-
 App({
   onLaunch() {
     // 展示本地存储能力
     const logs = wx.getStorageSync('logs') || [];
     logs.unshift(Date.now());
     wx.setStorageSync('logs', logs);
-
-    // 登录并缓存身份。页面会根据 is_admin 做二次兜底跳转。
-    this.checkRole();
-  },
-
-  checkRole() {
-    wx.login({
-      success: (res) => {
-        if (!res.code) {
-          wx.setStorageSync('is_admin', false);
-          this._redirectToMall();
-          return;
-        }
-
-        api.request({
-          url: '/api/check_role/',
-          data: { code: res.code }
-        }).then((data) => {
-          const isAdmin = data.role === 'admin';
-          wx.setStorageSync('is_admin', isAdmin);
-          console.log(`身份确认：${isAdmin ? '店主' : '顾客'}`);
-          // 不主动跳转，让各个页面的 onLoad/onShow 自行判断
-          // 避免频繁 wx.reLaunch 导致页面反复重建
-        }).catch((err) => {
-          console.error('角色检查请求失败', err);
-          wx.setStorageSync('is_admin', false);
-          this._redirectToMall();
-        });
-      },
-      fail: (err) => {
-        console.error('微信登录失败', err);
-        wx.setStorageSync('is_admin', false);
-        this._redirectToMall();
-      }
-    });
-  },
-
-  _redirectToMall() {
-    const pages = getCurrentPages();
-    const current = pages[pages.length - 1];
-    if (!current || current.route !== 'pages/mall/mall') {
-      wx.reLaunch({ url: '/pages/mall/mall' });
-    }
   },
 
   globalData: {

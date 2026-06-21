@@ -25,58 +25,19 @@ Page({
     lowStockProducts: [],
     lowStockCount: 0,
     activeTab: 'orders',   // 'orders' | 'lowstock'
-    _autoSwitched: false,
-    _roleReady: false       // 身份确认后才渲染页面
+    _autoSwitched: false
   },
 
   onLoad: function () {
-    // 立即检查身份，顾客跳转到线上商城 H5
-    const isAdmin = wx.getStorageSync('is_admin');
-    if (isAdmin === false) {
-      this._showCustomerPrompt();
-      return;
-    }
-    // 身份还未确认时（undefined），显示 loading 不渲染内容
-    if (isAdmin === undefined || isAdmin === '') {
-      return;
-    }
-    // 身份确认是店主，继续加载
     this._initPage();
   },
 
   onShow: function () {
-    const isAdmin = wx.getStorageSync('is_admin');
-    if (isAdmin === false) {
-      this._showCustomerPrompt();
-      return;
-    }
-    if (isAdmin === undefined || isAdmin === '') {
-      return; // 等 checkRole 完成
-    }
-    if (!this.data._roleReady) {
-      this._initPage();
-    }
     this.refreshDashboard();
     this.startPolling();
   },
 
-  _showCustomerPrompt: function () {
-    // 顾客请使用线上商城 H5
-    if (this._promptShown) return;
-    this._promptShown = true;
-    wx.showModal({
-      title: '📱 线上商城已升级',
-      content: '请在浏览器中打开 yide.dpdns.org 浏览商品并下单，无需使用小程序。',
-      confirmText: '知道了',
-      showCancel: false,
-      success: () => {
-        // 提示后留在空白页（小程序无可用页面）
-      }
-    });
-  },
-
   _initPage: function () {
-    this.setData({ _roleReady: true });
     this.refreshDashboard();
     // 等数据加载完再决定默认切到哪个tab（仅首次）
     setTimeout(() => this.autoSwitchOnce(), 500);

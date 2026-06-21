@@ -23,17 +23,7 @@ Page({
   },
 
   onShow: function () {
-    // 顾客请使用线上商城 H5，进货录入是店主用的
-    const isAdmin = wx.getStorageSync('is_admin');
-    if (isAdmin === false) {
-      wx.showModal({
-        title: '📱 线上商城已升级',
-        content: '请在浏览器中打开 yide.dpdns.org 浏览商品并下单。',
-        confirmText: '知道了',
-        showCancel: false
-      });
-      return;
-    }
+    // 进货录入页 — 直接可用，无需身份校验
   },
 
   /* ─── 扫码识别（已有） ─── */
@@ -76,20 +66,20 @@ Page({
     this.setData({ scanLoading: true, scanStatus: '📡 正在查询本地商品库...' });
     statusTimer = setTimeout(function () {
       if (!timedOut) {
-        that.setData({ scanStatus: '🌐 本地未匹配，正在查询外部数据库（约 20 秒）...' });
+        that.setData({ scanStatus: '🌐 本地未匹配，正在查询外部数据库...' });
       }
-    }, 2000);
-    // 如果超过 8 秒还没回来，再提示一次
+    }, 1500);
+    // 如果超过 5 秒还没回来，再提示一次
     var longTimer = setTimeout(function () {
       if (!timedOut) {
-        that.setData({ scanStatus: '⏳ 外部查询中，数据源较多请稍候...' });
+        that.setData({ scanStatus: '⏳ 外部查询中，请耐心等待...' });
       }
-    }, 8000);
+    }, 5000);
 
     api.request({
       url: '/get_product_by_barcode/',
       data: { barcode: code },
-      timeout: 25000  // 外部查询最多需 20 秒，给 25 秒超时
+      timeout: 15000  // 外部并行查询约 8 秒可完成
     }).then((data) => {
       timedOut = true;
       clearTimeout(statusTimer);
