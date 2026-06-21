@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -686,6 +687,12 @@ initCartSummary();
 setInterval(updateStats, 5000);
 setInterval(loadDashboard, 30000);
 setInterval(initCartSummary, 5000);  // 定期和服务端同步，防止小程序清空后本地不同步
+
+window.addEventListener('pageshow', function (e) {
+  // ⚠️ 修复手机浏览器 bfcache 恢复时 body overflow 残留导致页面卡死
+  document.body.style.overflow = '';
+  if (e.persisted) { updateStats(); loadDashboard(); initCartSummary(); }
+});
 </script>
 
 <!-- Modal -->
@@ -1969,6 +1976,16 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+window.addEventListener('pageshow', function (e) {
+  // ⚠️ 修复手机浏览器 bfcache 恢复时 body overflow 残留导致页面卡死
+  document.body.style.overflow = '';
+  if (e.persisted) {
+    loadCart();
+    updateCartBar();
+    fetchProducts();
+  }
+});
 </script>
 </body>
 </html>"""
@@ -2163,130 +2180,209 @@ def _estimate_price_from_db(name):
 
 def _lookup_barcode_external(barcode):
     """
-    条码不在本地库时，尝试从外部开放 API 查询商品信息。
+    条码不在本地库时，尝试从多个外部开放 API 并行查询商品信息。
     返回 dict 或 None。
     """
     barcode = barcode.strip()
-    price_estimate = None
-    full_name = None
-    category_hint = 'others'
+    is_isbn = (barcode.startswith('978') or barcode.startswith('979')) and len(barcode) == 13
 
-    # 1) ISBN 类（978/979 开头共 13 位）
-    if (barcode.startswith('978') or barcode.startswith('979')) and len(barcode) == 13:
-        category_hint = 'books'
-
-        # 1a) Open Library API（免费、无需密钥 → 查书名+作者）
+    # ── ISBN 书籍：并行查 Open Library（书名）+ Google Books（书名+零售价）──
+    if is_isbn:
+        name = None
+        price = None
         try:
-            url = f'https://openlibrary.org/isbn/{barcode}.json'
-            resp = requests.get(url, timeout=8)
-            if resp.status_code == 200:
-                data = resp.json()
-                title = data.get('title', '')
-                authors = data.get('authors', [])
-                author_names = []
-                for a in authors:
-                    key = a.get('key', '')
-                    if key:
-                        try:
-                            a_resp = requests.get(f'https://openlibrary.org{key}.json', timeout=5)
-                            if a_resp.status_code == 200:
-                                a_data = a_resp.json()
-                                author_names.append(a_data.get('name', ''))
-                        except Exception:
-                            pass
-                author_str = ' / '.join(author_names) if author_names else ''
-                full_name = title
-                if author_str:
-                    full_name = f'{title}（{author_str}）'
-                logger.info("OpenLibrary 查到 ISBN %s → %s", barcode, full_name)
-        except requests.Timeout:
-            logger.warning("OpenLibrary 查询 %s 超时", barcode)
-        except Exception as e:
-            logger.warning("OpenLibrary 查询 %s 异常: %s", barcode, e)
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                ol_fut = ex.submit(_fetch_isbn_openlibrary, barcode)
+                gb_fut = ex.submit(_fetch_isbn_googlebooks, barcode)
+                # 先等 Open Library
+                try:
+                    ol_name = ol_fut.result(timeout=12)
+                    if ol_name:
+                        name = ol_name
+                except Exception:
+                    pass
+                # 再等 Google Books
+                try:
+                    gb_result = gb_fut.result(timeout=12)
+                    if gb_result:
+                        if not name:
+                            name = gb_result.get('name')
+                        price = gb_result.get('price')
+                except Exception:
+                    pass
+        except Exception:
+            # ThreadPoolExecutor 不可用（如某些 serverless 环境）→ 降级为串行
+            pass
 
-        # 1b) Google Books API（公共端点，无 key 可用但有限额）
-        try:
-            gb_url = f'https://www.googleapis.com/books/v1/volumes?q=isbn:{barcode}'
-            gb_resp = requests.get(gb_url, timeout=8)
-            if gb_resp.status_code == 200:
-                gb_data = gb_resp.json()
-                items = gb_data.get('items', [])
-                if items:
-                    vol = items[0].get('volumeInfo', {})
-                    if not full_name:
-                        gb_title = vol.get('title', '')
-                        gb_authors = vol.get('authors', [])
-                        if gb_title:
-                            full_name = gb_title
-                            if gb_authors:
-                                full_name = f'{gb_title}（{" / ".join(gb_authors)}）'
-                    # 尝试获取零售价
-                    sale_info = items[0].get('saleInfo', {})
-                    if sale_info.get('isEbook') or sale_info.get('saleability') != 'NOT_FOR_SALE':
-                        list_price = sale_info.get('listPrice', {})
-                        if list_price.get('amount'):
-                            price_estimate = round(float(list_price['amount']), 2)
-                            logger.info("GoogleBooks 查到 %s 定价: %s", barcode, price_estimate)
-        except Exception as e:
-            logger.warning("GoogleBooks 查询 %s 异常: %s", barcode, e)
+        if not name:
+            name = _fetch_isbn_openlibrary(barcode)
+        if not name:
+            gb_result = _fetch_isbn_googlebooks(barcode)
+            if gb_result:
+                name = gb_result.get('name')
+                price = gb_result.get('price')
 
-        if full_name:
+        if name:
             return {
-                'name': full_name,
-                'category': category_hint,
+                'name': name,
+                'category': 'books',
                 'barcode': barcode,
-                'price_estimate': price_estimate,
+                'price_estimate': price,
             }
 
-    # 2) 通用条码 → barcode-list.com 免费 API（无密钥，有频率限制）
+    # ── 通用条码：并行查多个数据源，取最先查到结果的 ──
     try:
-        url = f'https://barcode-list.com/api/v2/barcode/{barcode}'
-        resp = requests.get(url, timeout=8, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get('status') == 'ok' and data.get('product'):
-                p = data['product']
-                name = (p.get('name') or '').strip()
-                brand = (p.get('brand') or '').strip()
-                if name and brand:
-                    name = f'{brand} {name}'
-                elif brand:
-                    name = brand
-                logger.info("BarcodeList.com 查到 %s → %s", barcode, name)
-                return {
-                    'name': name if name else None,
-                    'category': 'others',
-                    'barcode': barcode,
-                    'price_estimate': _estimate_price_from_db(name),
-                }
-    except Exception as e:
-        logger.warning("BarcodeList.com 查询 %s 异常: %s", barcode, e)
-
-    # 3) 通用条码 → Open Food Facts 免费 API（无密钥、覆盖广，非食品也能查到）
-    try:
-        off_url = f'https://world.openfoodfacts.org/api/v2/product/{barcode}.json'
-        off_resp = requests.get(off_url, timeout=8, headers={'User-Agent': 'YideBookstore/1.0'})
-        if off_resp.status_code == 200:
-            off_data = off_resp.json()
-            if off_data.get('status') == 1:  # 1 = found
-                p = off_data.get('product', {})
-                off_name = (p.get('product_name') or p.get('generic_name') or '').strip()
-                off_brand = (p.get('brands') or '').strip()
-                if off_name and off_brand:
-                    off_name = f'{off_brand} {off_name}'
-                elif off_brand:
-                    off_name = off_brand
-                if off_name:
-                    logger.info("OpenFoodFacts 查到 %s → %s", barcode, off_name)
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            futures = {
+                ex.submit(_fetch_barcodelist, barcode): 1,
+                ex.submit(_fetch_openfoodfacts, barcode): 2,
+            }
+            for future in as_completed(futures, timeout=15):
+                result = future.result()
+                if result:
                     return {
-                        'name': off_name,
+                        'name': result,
                         'category': 'others',
                         'barcode': barcode,
-                        'price_estimate': _estimate_price_from_db(off_name),
+                        'price_estimate': _estimate_price_from_db(result),
                     }
+    except Exception:
+        pass
+
+    # 降级：串行尝试
+    for fetcher in (_fetch_barcodelist, _fetch_openfoodfacts):
+        try:
+            result = fetcher(barcode)
+            if result:
+                return {
+                    'name': result,
+                    'category': 'others',
+                    'barcode': barcode,
+                    'price_estimate': _estimate_price_from_db(result),
+                }
+        except Exception:
+            continue
+
+    return None
+
+
+def _fetch_isbn_openlibrary(barcode):
+    """Open Library API — 查 ISBN 书名+作者（免费、无需密钥）"""
+    try:
+        resp = requests.get(f'https://openlibrary.org/isbn/{barcode}.json', timeout=8)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        title = data.get('title', '')
+        if not title:
+            return None
+        authors = data.get('authors', [])
+        author_names = []
+        for a in authors:
+            key = a.get('key', '')
+            if key:
+                try:
+                    a_resp = requests.get(f'https://openlibrary.org{key}.json', timeout=5)
+                    if a_resp.status_code == 200:
+                        author_names.append(a_resp.json().get('name', ''))
+                except Exception:
+                    pass
+        author_str = ' / '.join(author_names) if author_names else ''
+        full_name = f'{title}（{author_str}）' if author_str else title
+        logger.info("OpenLibrary 查到 ISBN %s → %s", barcode, full_name)
+        return full_name
+    except requests.Timeout:
+        logger.warning("OpenLibrary 查询 %s 超时", barcode)
+    except Exception as e:
+        logger.warning("OpenLibrary 查询 %s 异常: %s", barcode, e)
+    return None
+
+
+def _fetch_isbn_googlebooks(barcode):
+    """Google Books API — 查 ISBN 书名+零售价（公共端点，有限额）"""
+    try:
+        resp = requests.get(
+            f'https://www.googleapis.com/books/v1/volumes?q=isbn:{barcode}',
+            timeout=8
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        items = data.get('items', [])
+        if not items:
+            return None
+        vol = items[0].get('volumeInfo', {})
+        title = vol.get('title', '')
+        if not title:
+            return None
+        authors = vol.get('authors', [])
+        full_name = f'{title}（{" / ".join(authors)}）' if authors else title
+        # 零售价
+        price = None
+        try:
+            sale_info = items[0].get('saleInfo', {})
+            if sale_info.get('isEbook') or sale_info.get('saleability') != 'NOT_FOR_SALE':
+                list_price = sale_info.get('listPrice', {})
+                if list_price.get('amount'):
+                    price = round(float(list_price['amount']), 2)
+        except Exception:
+            pass
+        logger.info("GoogleBooks 查到 %s → %s, price=%s", barcode, full_name, price)
+        return {'name': full_name, 'price': price}
+    except requests.Timeout:
+        logger.warning("GoogleBooks 查询 %s 超时", barcode)
+    except Exception as e:
+        logger.warning("GoogleBooks 查询 %s 异常: %s", barcode, e)
+    return None
+
+
+def _fetch_barcodelist(barcode):
+    """barcode-list.com 免费 API — 通用条码查询（无密钥，有频率限制）"""
+    try:
+        resp = requests.get(
+            f'https://barcode-list.com/api/v2/barcode/{barcode}',
+            timeout=8,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if data.get('status') != 'ok' or not data.get('product'):
+            return None
+        p = data['product']
+        name = (p.get('name') or '').strip()
+        brand = (p.get('brand') or '').strip()
+        result = f'{brand} {name}' if name and brand else (brand or name or None)
+        if result:
+            logger.info("BarcodeList.com 查到 %s → %s", barcode, result)
+        return result
+    except Exception as e:
+        logger.warning("BarcodeList.com 查询 %s 异常: %s", barcode, e)
+    return None
+
+
+def _fetch_openfoodfacts(barcode):
+    """Open Food Facts API — 通用条码查询（免费、覆盖广）"""
+    try:
+        resp = requests.get(
+            f'https://world.openfoodfacts.org/api/v2/product/{barcode}.json',
+            timeout=8,
+            headers={'User-Agent': 'YideBookstore/1.0'}
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if data.get('status') != 1:
+            return None
+        p = data.get('product', {})
+        name = (p.get('product_name') or p.get('generic_name') or '').strip()
+        brand = (p.get('brands') or '').strip()
+        result = f'{brand} {name}' if name and brand else (brand or name or None)
+        if result:
+            logger.info("OpenFoodFacts 查到 %s → %s", barcode, result)
+        return result
     except Exception as e:
         logger.warning("OpenFoodFacts 查询 %s 异常: %s", barcode, e)
-
     return None
 
 
