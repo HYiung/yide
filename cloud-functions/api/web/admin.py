@@ -139,8 +139,8 @@ class AdminUserAdmin(admin.ModelAdmin):
 # ===== 4. 商品库管理 =====
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('barcode', 'name', 'colored_category', 'price', 'stock', 'colored_stock', 'has_image', 'short_time')
-    list_editable = ('name', 'price', 'stock')
+    list_display = ('barcode', 'name', 'price', 'stock', 'image_url', 'colored_category', 'colored_stock', 'has_image', 'short_time')
+    list_editable = ('name', 'price', 'stock', 'image_url')
     list_filter = ('category', 'create_time')
     search_fields = ('barcode', 'name')
     ordering = ('-create_time',)
