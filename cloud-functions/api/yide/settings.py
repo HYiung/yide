@@ -23,17 +23,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-# ⚠️ 生产环境必须设置 DJANGO_SECRET_KEY 环境变量，不要使用默认值！
+# ===== 安全配置（生产环境必须覆盖以下环境变量） =====
+# ⚠️ 生产环境必须设置 DJANGO_SECRET_KEY 环境变量！
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
     warnings.warn(
-        "DJANGO_SECRET_KEY 未设置，使用不安全的开发用默认密钥，请勿用于生产环境！"
+        "===== ⚠️ 安全警告: DJANGO_SECRET_KEY 未设置！=====\n"
+        "生产环境务必设置此环境变量，否则 Django 签名可被伪造！\n"
+        "本地开发使用以下默认密钥（安全风险自担）"
     )
     SECRET_KEY = 'insecure-dev-key-do-not-use-in-production'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
+_DEBUG_RAW = os.environ.get('DJANGO_DEBUG', 'True').lower()
+DEBUG = _DEBUG_RAW in ('1', 'true', 'yes', 'on')
+
+# 安全检查：生产环境应有 SECRET_KEY + DEBUG=False
+if DEBUG and not os.environ.get('DJANGO_SECRET_KEY'):
+    warnings.warn("DEBUG=True + 默认 SECRET_KEY — 仅限本地开发，请勿用于生产环境！")
+elif not DEBUG and SECRET_KEY == 'insecure-dev-key-do-not-use-in-production':
+    import sys as _sys
+    print("FATAL: 生产环境必须设置 DJANGO_SECRET_KEY！", file=_sys.stderr)
+    # 不阻止启动，但打印严重警告
 
 ALLOWED_HOSTS = [
     '.vercel.app',

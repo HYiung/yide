@@ -33,6 +33,47 @@ def get_request_int(value, default=0):
         return default
 
 
+def _line_total_expr():
+    """复用：price * quantity 表达式，避免重复定义"""
+    return ExpressionWrapper(
+        F('price') * F('quantity'),
+        output_field=DecimalField(max_digits=12, decimal_places=2)
+    )
+
+
+def _today_sales_stats():
+    """复用：获取今日营收总额和总销量"""
+    now = now_local()
+    today = now.date()
+    stats = SaleHistory.objects.filter(
+        sale_date__date=today
+    ).aggregate(
+        total=Sum(_line_total_expr()),
+        count=Sum('quantity')
+    )
+    return {
+        'total_amount': float(stats['total'] or 0),
+        'today_count': int(stats['count'] or 0),
+    }
+
+
+def _daily_revenue(days=7):
+    """复用：获取最近 N 天的每日营收趋势"""
+    now = now_local()
+    today = now.date()
+    result = []
+    for i in range(days - 1, -1, -1):
+        day = today - timedelta(days=i)
+        day_stats = SaleHistory.objects.filter(
+            sale_date__date=day
+        ).aggregate(total=Sum(_line_total_expr()))
+        result.append({
+            'date': day.strftime('%m/%d'),
+            'total': float(day_stats['total'] or 0)
+        })
+    return result
+
+
 def serialize_order(order):
     items = []
     for item in order.items.select_related('product').all():
@@ -730,6 +771,7 @@ MALL_HTML = """<!DOCTYPE html>
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>一得书苑 · 线上商城</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>📖</text></svg>">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :root {
@@ -772,11 +814,15 @@ MALL_HTML = """<!DOCTYPE html>
     justify-content: center;
   }
   .mall-header h1 { font-size: 18px; font-weight: 600; letter-spacing: 1px; }
-  .header-admin-btn {
+  .header-btn-group {
     position: absolute;
     right: 14px;
     top: 50%;
     transform: translateY(-50%);
+    display: flex;
+    gap: 4px;
+  }
+  .header-btn {
     font-size: 16px;
     text-decoration: none;
     opacity: 0.55;
@@ -784,8 +830,12 @@ MALL_HTML = """<!DOCTYPE html>
     padding: 6px;
     border-radius: 8px;
     transition: opacity 0.2s;
+    cursor: pointer;
+    background: none;
+    border: none;
+    line-height: 1;
   }
-  .header-admin-btn:hover { opacity: 1; }
+  .header-btn:hover { opacity: 1; }
 
   /* ===== Search ===== */
   .search-bar {
@@ -1327,7 +1377,10 @@ MALL_HTML = """<!DOCTYPE html>
 <!-- Header -->
 <div class="mall-header">
   <h1>🛍️ 一得书苑 · 线上商城</h1>
-  <a href="/cashier/" class="header-admin-btn" title="店长入口">🔑</a>
+  <div class="header-btn-group">
+    <button class="header-btn" id="orderQueryBtn" title="查订单">📋</button>
+    <a href="/cashier/" class="header-btn" title="店长入口">🔑</a>
+  </div>
 </div>
 
 <!-- Search -->
@@ -1397,6 +1450,35 @@ MALL_HTML = """<!DOCTYPE html>
   <button class="btn-primary" id="successDone">好的</button>
 </div>
 
+<!-- Share QR Modal -->
+<div class="overlay" id="shareOverlay"></div>
+<div class="modal-panel success-modal" id="sharePanel" style="max-width:420px;">
+  <span class="success-icon">📤</span>
+  <h2>分享一得书苑</h2>
+  <div style="text-align:center;margin:16px 0;">
+    <img src="/assets/web/qr_yide_mall.png" alt="商城二维码" style="width:260px;height:auto;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+    <div style="font-size:13px;color:var(--text-secondary);margin-top:8px;">微信扫一扫 · 在线选书下单</div>
+  </div>
+  <button class="btn-primary" id="shareDoneBtn">好的</button>
+</div>
+
+<!-- Order Query Modal -->
+<div class="overlay" id="queryOverlay"></div>
+<div class="modal-panel" id="queryPanel" style="max-height:70vh;">
+  <h2>📋 查订单</h2>
+  <div style="margin-bottom:16px;">
+    <label style="display:block;font-size:13px;color:var(--text-secondary);margin-bottom:6px;">👤 输入下单时留的姓名</label>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="queryNameInput" placeholder="请输入姓名" autocomplete="name" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:15px;outline:none;">
+      <button id="querySubmitBtn" style="padding:10px 20px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">查询</button>
+    </div>
+  </div>
+  <div id="queryResult"></div>
+  <div style="margin-top:12px;text-align:center;">
+    <button class="btn-cancel" id="queryCloseBtn" style="padding:10px 24px;border:none;border-radius:8px;font-size:14px;cursor:pointer;background:var(--bg);color:var(--text);">关闭</button>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -1416,7 +1498,7 @@ MALL_HTML = """<!DOCTYPE html>
 </div>
 
 <!-- Shopkeeper Entrance (always visible at bottom) -->
-<div class="shopkeeper-bar">🏪 到店取货 · 提交后到柜台报姓名付款取货</div>
+<div class="shopkeeper-bar">🏪 到店取货 · 提交后到柜台报姓名付款取货 · <a href="javascript:void(0)" id="shareBtn" style="color:var(--green);text-decoration:none;font-weight:600;">📤 分享商城</a></div>
 
 <script>
 // ============================================================
@@ -1586,6 +1668,7 @@ function fetchProducts() {
             stock: getProductStock(p),
             category: p.category,
             create_time: p.create_time,
+            image_url: p.image_url || '',
             productEmoji: getProductEmoji(p.name),
             categoryColor: getCategoryColor(p.category)
           };
@@ -1638,8 +1721,11 @@ function renderProducts(list) {
       : '<button class="btn-add sold-out" disabled>已售罄</button>';
 
     return '<div class="product-card" data-id="' + p.id + '">'
-      + '<div class="card-img-wrap" style="background:' + p.categoryColor + ';">'
-        + '<span style="font-size:48px">' + p.productEmoji + '</span>'
+      + '<div class="card-img-wrap" style="background:' + p.categoryColor + ';position:relative;overflow:hidden;">'
+        + (p.image_url
+          ? '<img src="' + escAttr(p.image_url) + '" alt="' + escAttr(p.name) + '" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;" onerror="this.style.display=\'none\';this.parentNode.style.background=\'' + p.categoryColor + '\';this.parentNode.querySelector(\'.emoji-fallback\').style.display=\'flex\';">'
+          : '')
+        + '<span class="emoji-fallback" style="font-size:48px' + (p.image_url ? ';display:none' : '') + '">' + p.productEmoji + '</span>'
         + badges
       + '</div>'
       + '<div class="card-info">'
@@ -1672,6 +1758,9 @@ function escHtml(s) {
   d.textContent = s;
   return d.innerHTML;
 }
+function escAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
 // ============================================================
 // Cart Operations
@@ -1687,6 +1776,7 @@ function addToCart(product) {
       num: 1,
       stock: product.stock,
       category: product.category,
+      image_url: product.image_url || '',
       productEmoji: product.productEmoji,
       categoryColor: product.categoryColor
     });
@@ -1759,6 +1849,7 @@ function syncCartWithProducts() {
     item.price = Number(latest.price);
     item.name = latest.name;
     // update emoji/color in case product name changed category
+    item.image_url = latest.image_url || '';
     item.productEmoji = getProductEmoji(latest.name);
     item.categoryColor = getCategoryColor(latest.category);
     return true;
@@ -1926,6 +2017,58 @@ function closeSuccess() {
 }
 
 // ============================================================
+// Order Query
+// ============================================================
+var queryOpen = false;
+function openQuery() {
+  queryOpen = true;
+  document.getElementById('queryOverlay').className = 'overlay show';
+  document.getElementById('queryPanel').className = 'modal-panel show';
+  document.getElementById('queryNameInput').value = '';
+  document.getElementById('queryResult').innerHTML = '';
+  document.body.style.overflow = 'hidden';
+  setTimeout(function() { document.getElementById('queryNameInput').focus(); }, 300);
+}
+function closeQuery() {
+  queryOpen = false;
+  document.getElementById('queryOverlay').className = 'overlay';
+  document.getElementById('queryPanel').className = 'modal-panel';
+  document.body.style.overflow = '';
+}
+function doQueryOrders() {
+  var name = document.getElementById('queryNameInput').value.trim();
+  if (!name) { showToast('请输入姓名', '👤'); return; }
+  var el = document.getElementById('queryResult');
+  el.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--text-secondary);"><div class="loading-spinner"></div><div style="margin-top:6px">查询中...</div></div>';
+  apiGet('/api/query_orders/?name=' + encodeURIComponent(name))
+    .then(function(data) {
+      if (data.status === 'success' && data.list.length > 0) {
+        var html = '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">共 ' + data.list.length + ' 个待取货订单</div>';
+        data.list.forEach(function(o) {
+          html += '<div style="margin-bottom:12px;padding:12px;background:var(--bg);border-radius:8px;font-size:13px;">'
+            + '<div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:4px;">'
+            + '<span>#' + o.order_sn.slice(-8) + '</span>'
+            + '<span style="color:#fa8c16">待取货</span></div>'
+            + '<div style="color:var(--text-secondary);font-size:12px;">' + o.create_time + ' · ' + o.customer_name + '</div>';
+          o.items.forEach(function(item) {
+            html += '<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:12px;">'
+              + '<span>' + escHtml(item.name) + ' ×' + item.count + '</span>'
+              + '<span style="color:#f5222d">¥' + (parseFloat(item.price) * item.count).toFixed(2) + '</span></div>';
+          });
+          html += '<div style="text-align:right;font-weight:700;font-size:14px;margin-top:4px;padding-top:4px;border-top:1px solid #eee;">合计: ¥' + o.total_price + '</div>';
+          html += '</div>';
+        });
+        el.innerHTML = html;
+      } else {
+        el.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--text-secondary);">📭 未找到待取货订单<br><span style="font-size:12px;">请确认姓名与下单时填写的一致</span></div>';
+      }
+    })
+    .catch(function() {
+      el.innerHTML = '<div style="text-align:center;padding:20px 0;color:#f5222d;">⚠️ 查询失败，请检查网络后重试</div>';
+    });
+}
+
+// ============================================================
 // Init
 // ============================================================
 function init() {
@@ -1949,6 +2092,18 @@ function init() {
   document.getElementById('searchInput').addEventListener('input', function(e) {
     document.getElementById('clearBtn').style.display = e.target.value ? '' : 'none';
   });
+  // 搜索防抖：输入后 300ms 自动搜索（合并快速输入）
+  var searchTimer = null;
+  document.getElementById('searchInput').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') return; // Enter 由 keydown 处理
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(function() {
+      state.searchKey = document.getElementById('searchInput').value.trim();
+      if (state.searchKey) state.activeCat = 'all';
+      renderCategories();
+      fetchProducts();
+    }, 300);
+  });
   document.getElementById('clearBtn').addEventListener('click', function() {
     document.getElementById('searchInput').value = '';
     state.searchKey = '';
@@ -1966,6 +2121,29 @@ function init() {
   document.getElementById('orderCancel').addEventListener('click', closeOrder);
   document.getElementById('orderOverlay').addEventListener('click', closeOrder);
   document.getElementById('orderSubmit').addEventListener('click', submitOrder);
+
+  // Order Query
+  // Share QR
+  document.getElementById('shareBtn').addEventListener('click', function() {
+    document.getElementById('shareOverlay').className = 'overlay show';
+    document.getElementById('sharePanel').className = 'modal-panel success-modal show';
+  });
+  document.getElementById('shareOverlay').addEventListener('click', function() {
+    document.getElementById('shareOverlay').className = 'overlay';
+    document.getElementById('sharePanel').className = 'modal-panel success-modal';
+  });
+  document.getElementById('shareDoneBtn').addEventListener('click', function() {
+    document.getElementById('shareOverlay').className = 'overlay';
+    document.getElementById('sharePanel').className = 'modal-panel success-modal';
+  });
+
+  document.getElementById('orderQueryBtn').addEventListener('click', openQuery);
+  document.getElementById('queryOverlay').addEventListener('click', closeQuery);
+  document.getElementById('queryCloseBtn').addEventListener('click', closeQuery);
+  document.getElementById('querySubmitBtn').addEventListener('click', doQueryOrders);
+  document.getElementById('queryNameInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doQueryOrders();
+  });
 
   // Success
   document.getElementById('successDone').addEventListener('click', closeSuccess);
@@ -2657,31 +2835,11 @@ def checkout_cart(request):
 
 # 今日营业额
 def get_today_stats(request):
-    now = now_local()
-    today = now.date()
-
-    # 只统计 SaleHistory 即可。
-    # 它核销后会自动把商城订单拆解并存入 SaleHistory。
-    line_total = ExpressionWrapper(
-        F('price') * F('quantity'),
-        output_field=DecimalField(max_digits=12, decimal_places=2)
-    )
-    stats = SaleHistory.objects.filter(
-        sale_date__date=today
-    ).aggregate(
-        total_money=Sum(line_total),
-        total_num=Sum('quantity')  # 注意：这里用 Sum(quantity) 比 count() 更准
-    )
-
-    total_amount = float(stats['total_money'] or 0)
-    # 如果统计的是卖出多少件货，用 Sum('quantity')；
-    # 如果统计的是成交了多少笔单，用 .count()
-    today_count = stats['total_num'] or 0
-
+    stats = _today_sales_stats()
     return JsonResponse({
         'status': 'success',
-        'total_amount': round(total_amount, 2),
-        'today_count': int(today_count)
+        'total_amount': round(stats['total_amount'], 2),
+        'today_count': stats['today_count'],
     })
 
 
@@ -2859,7 +3017,8 @@ def quick_add_product(request):
     barcode = request.GET.get('barcode')
     name = request.GET.get('name')
     price = request.GET.get('price')
-    category = request.GET.get('category', 'others')  # 新增：分类参数，默认其他
+    category = request.GET.get('category', 'others')
+    image_url = request.GET.get('image_url', '').strip()
 
     try:
         stock = int(request.GET.get('stock', 0))
@@ -2886,18 +3045,23 @@ def quick_add_product(request):
                 'name': name,
                 'price': price_value,
                 'stock': 0,
-                'category': category
+                'category': category,
+                'image_url': image_url,
             }
         )
 
         if not created:
             product.name = name
             product.price = price_value
-            product.category = category  # 允许更新分类
+            product.category = category
+
+        # 更新图片链接（新旧商品都允许更新）
+        if image_url:
+            product.image_url = image_url
 
         # 增加库存
         product.stock += stock
-        product.save(update_fields=['name', 'price', 'stock', 'category'])
+        product.save(update_fields=['name', 'price', 'stock', 'category', 'image_url'])
 
     return JsonResponse({
         'status': 'success',
@@ -2921,7 +3085,7 @@ def get_mall_products(request):
     if search:
         query = query.filter(name__icontains=search)
 
-    products = query.values('id', 'name', 'price', 'category', 'stock', 'create_time')
+    products = query.values('id', 'name', 'price', 'category', 'stock', 'create_time', 'image_url')
     # 按录入时间倒序（新品在前）
     products = products.order_by('-create_time')
 
@@ -2948,7 +3112,9 @@ CATEGORY_EXCLUDE = {
 
 @csrf_exempt
 def auto_categorize_products(request):
-    """一键自动分类：根据商品名称关键词分配分类"""
+    """一键自动分类：根据商品名称关键词分配分类（仅店长可用）"""
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return JsonResponse({'status': 'fail', 'msg': '需要店长权限'})
     from .models import Product
 
     count = 0
@@ -3042,7 +3208,9 @@ SEED_PRODUCTS = [
 
 @csrf_exempt
 def seed_sample_products(request):
-    """一键部署示例商品数据到云端数据库（覆盖更新，确保分类正确）"""
+    """一键部署示例商品数据到云端数据库（仅店长可用）"""
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return JsonResponse({'status': 'fail', 'msg': '需要店长权限'})
     from .models import Product
     from decimal import Decimal
 
@@ -3199,6 +3367,21 @@ def search_order(request):
     return JsonResponse({'status': 'fail', 'msg': '未找到匹配订单'})
 
 
+def query_my_orders(request):
+    """顾客查询自己的订单（输入姓名，查所有待取货订单）"""
+    name = request.GET.get('name', '').strip()
+    if not name:
+        return JsonResponse({'status': 'fail', 'msg': '请输入姓名'})
+    orders = Order.objects.filter(
+        customer_name__icontains=name,
+        status=0
+    ).prefetch_related('items__product').order_by('-create_time')[:10]
+    return JsonResponse({
+        'status': 'success',
+        'list': [serialize_order(order) for order in orders]
+    }, json_dumps_params={'ensure_ascii': False})
+
+
 # 2. 确认取货核销接口
 @csrf_exempt
 def verify_order(request):
@@ -3248,35 +3431,12 @@ def verify_order(request):
 def dashboard_stats(request):
     now = now_local()
     today = now.date()
-    week_ago = today - timedelta(days=6)
 
     # 本日营收
-    line_total = ExpressionWrapper(
-        F('price') * F('quantity'),
-        output_field=DecimalField(max_digits=12, decimal_places=2)
-    )
-    today_stats = SaleHistory.objects.filter(
-        sale_date__date=today
-    ).aggregate(
-        total=Sum(line_total),
-        count=Sum('quantity')
-    )
-    today_revenue = float(today_stats['total'] or 0)
-    today_count = int(today_stats['count'] or 0)
+    today_stats = _today_sales_stats()
 
     # 最近7天销售趋势
-    daily_revenue = []
-    for i in range(6, -1, -1):
-        day = today - timedelta(days=i)
-        day_stats = SaleHistory.objects.filter(
-            sale_date__date=day
-        ).aggregate(
-            total=Sum(line_total)
-        )
-        daily_revenue.append({
-            'date': day.strftime('%m/%d'),
-            'total': float(day_stats['total'] or 0)
-        })
+    daily_revenue = _daily_revenue(7)
 
     # 分类销售占比（过去30天）
     month_ago = today - timedelta(days=30)
@@ -3306,8 +3466,8 @@ def dashboard_stats(request):
     pending_orders = Order.objects.filter(status=0).count()
 
     return JsonResponse({
-        'today_revenue': round(today_revenue, 2),
-        'today_count': today_count,
+        'today_revenue': round(today_stats['total_amount'], 2),
+        'today_count': today_stats['today_count'],
         'daily_revenue': daily_revenue,
         'top_products': top_products,
         'category_distribution': cat_counts,
@@ -3322,16 +3482,12 @@ def today_detail(request):
     today = now.date()
 
     # 按商品分组
-    line_total = ExpressionWrapper(
-        F('price') * F('quantity'),
-        output_field=DecimalField(max_digits=12, decimal_places=2)
-    )
     grouped = (SaleHistory.objects
         .filter(sale_date__date=today)
         .values('product_name')
         .annotate(
             total_qty=Sum('quantity'),
-            total_amount=Sum(line_total),
+            total_amount=Sum(_line_total_expr()),
             last_time=Max('sale_date')
         )
         .order_by('-total_amount'))
@@ -3383,16 +3539,7 @@ def dashboard_all(request):
         cart_total += i.product.price * i.quantity
 
     # 2. 今日营收
-    line_total = ExpressionWrapper(
-        F('price') * F('quantity'),
-        output_field=DecimalField(max_digits=12, decimal_places=2)
-    )
-    today_stats = SaleHistory.objects.filter(
-        sale_date__date=today
-    ).aggregate(
-        total=Sum(line_total),
-        count=Sum('quantity')
-    )
+    today_stats = _today_sales_stats()
 
     # 3. 待取货订单数 & 低库存数
     pending_count = Order.objects.filter(status=0).count()
@@ -3415,8 +3562,8 @@ def dashboard_all(request):
             'total': str(cart_total),
         },
         'today_stats': {
-            'total_amount': round(float(today_stats['total'] or 0), 2),
-            'today_count': int(today_stats['count'] or 0),
+            'total_amount': round(today_stats['total_amount'], 2),
+            'today_count': today_stats['today_count'],
         },
         'new_order': {
             'count': pending_count,

@@ -139,7 +139,7 @@ class AdminUserAdmin(admin.ModelAdmin):
 # ===== 4. 商品库管理 =====
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('barcode', 'name', 'colored_category', 'price', 'stock', 'colored_stock', 'short_time')
+    list_display = ('barcode', 'name', 'colored_category', 'price', 'stock', 'colored_stock', 'has_image', 'short_time')
     list_editable = ('name', 'price', 'stock')
     list_filter = ('category', 'create_time')
     search_fields = ('barcode', 'name')
@@ -166,6 +166,20 @@ class ProductAdmin(admin.ModelAdmin):
         return obj.create_time.strftime('%m-%d')
     short_time.short_description = '录入'
     short_time.admin_order_field = 'create_time'
+
+    def has_image(self, obj):
+        if obj.image_url:
+            return format_html(
+                '<a href="{}" target="_blank" style="display:inline-block;width:36px;height:36px;">'
+                '<img src="{}" style="width:36px;height:36px;object-fit:cover;border-radius:4px;" '
+                'onerror="this.style.display=\'none\'"></a>',
+                obj.image_url, obj.image_url
+            ) + format_html(
+                '<span style="color:#07c160;font-size:11px;"> ✅</span>'
+            )
+        return format_html('<span style="color:#ccc;">无图</span>')
+    has_image.short_description = '图片'
+    has_image.admin_order_field = 'image_url'
 
     def auto_categorize(self, request, queryset):
         CATEGORY_KEYWORDS = {

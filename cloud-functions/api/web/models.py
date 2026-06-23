@@ -19,6 +19,7 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="价格")
     stock = models.IntegerField(default=0, verbose_name="库存数量")
     category = models.CharField("分类", max_length=20, choices=CATEGORY_CHOICES, default='others')
+    image_url = models.URLField("商品图片链接", max_length=500, blank=True, default='')
     create_time = models.DateTimeField(auto_now_add=True, verbose_name="录入时间")
 
     def __str__(self):

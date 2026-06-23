@@ -25,7 +25,7 @@ def _init_django():
                 import django
                 django.setup()  # 先 setup 再 migrate
                 from django.core.management import call_command
-                call_command('makemigrations', '--noinput', verbosity=0)
+                # 生产环境不需要 makemigrations（迁移文件已提交），直接 migrate
                 call_command('migrate', '--noinput', verbosity=0)
                 print("Migrations completed on startup", flush=True)
             except Exception as e_mig:

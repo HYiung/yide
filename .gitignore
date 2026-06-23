@@ -19,6 +19,9 @@ db.sqlite3
 *.swp
 *.swo
 
+# Generated QR code images
+qrcode/
+
 # Claude Code
 .claude/
 

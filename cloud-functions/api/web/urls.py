@@ -23,6 +23,7 @@ urlpatterns = [
     path('api/pending_orders/', views.get_pending_orders, name='pending_orders'),  # 待取货订单列表
     path('api/low_stock_products/', views.get_low_stock_products, name='low_stock_products'),  # 低库存提醒
     path('api/search_order/', views.search_order, name='search_order'),  # 查询状态为 0 (待取货) 的订单
+    path('api/query_orders/', views.query_my_orders, name='query_my_orders'),  # 顾客按姓名查订单
     path('api/verify_order/', views.verify_order, name='verify_order'),  # 核销状态为 0 (待取货) 的订单
     path('api/health/', views.health_check, name='health_check'),  # 健康检查
     path('api/dashboard_stats/', views.dashboard_stats, name='dashboard_stats'),  # 仪表盘统计数据
