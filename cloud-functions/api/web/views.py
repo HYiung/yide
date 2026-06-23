@@ -1623,6 +1623,15 @@ function showToast(msg, icon) {
   state.toastTimer = setTimeout(function() { el.className = 'toast'; }, 2000);
 }
 
+// 商品图片加载失败时：隐藏图片，显示 emoji 占位
+function onProductImgError(img) {
+  img.style.display = 'none';
+  var wrap = img.parentNode;
+  if (img.dataset.bg) wrap.style.background = img.dataset.bg;
+  var fb = wrap.querySelector('.emoji-fallback');
+  if (fb) fb.style.display = 'flex';
+}
+
 // ============================================================
 // Render Categories
 // ============================================================
@@ -1723,7 +1732,7 @@ function renderProducts(list) {
     return '<div class="product-card" data-id="' + p.id + '">'
       + '<div class="card-img-wrap" style="background:' + p.categoryColor + ';position:relative;overflow:hidden;">'
         + (p.image_url
-          ? '<img src="' + escAttr(p.image_url) + '" alt="' + escAttr(p.name) + '" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;" onerror="this.style.display=\'none\';this.parentNode.style.background=\'' + p.categoryColor + '\';this.parentNode.querySelector(\'.emoji-fallback\').style.display=\'flex\';">'
+          ? '<img src="' + escAttr(p.image_url) + '" alt="' + escAttr(p.name) + '" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;" onerror="onProductImgError(this)" data-bg="' + p.categoryColor + '">'
           : '')
         + '<span class="emoji-fallback" style="font-size:48px' + (p.image_url ? ';display:none' : '') + '">' + p.productEmoji + '</span>'
         + badges

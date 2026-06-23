@@ -147,6 +147,19 @@ class ProductAdmin(admin.ModelAdmin):
     list_per_page = 25
     actions = ['auto_categorize']
 
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('barcode', 'name', 'category')
+        }),
+        ('价格与库存', {
+            'fields': ('price', 'stock')
+        }),
+        ('商品图片', {
+            'fields': ('image_url',),
+            'description': '输入商品图片链接（URL），支持任意图床链接。留空则使用 Emoji 占位。'
+        }),
+    )
+
     def colored_category(self, obj):
         return category_badge(obj.category)
     colored_category.short_description = '分类'
