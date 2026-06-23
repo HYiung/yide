@@ -705,7 +705,7 @@ function renderLogEntry(item) {
   var e = document.createElement('div'); e.className = 'log-entry';
   var qty = item.quantity > 1 ? ' ×' + item.quantity : '';
   var sub = item.quantity > 1 ? ' (小计 ￥' + (parseFloat(item.price) * item.quantity).toFixed(2) + ')' : '';
-  e.innerHTML = '<span class="log-time">' + ts + '</span><span class="log-name">' + item.name + qty + '</span><span class="log-price">￥' + item.price + sub + '</span>';
+  e.innerHTML = '<span class="log-time">' + ts + '</span><span class="log-name">' + (item.name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;') + qty + '</span><span class="log-price">￥' + item.price + sub + '</span>';
   return e;
 }
 
@@ -1456,7 +1456,7 @@ MALL_HTML = """<!DOCTYPE html>
   <span class="success-icon">📤</span>
   <h2>分享一得书苑</h2>
   <div style="text-align:center;margin:16px 0;">
-    <img src="/assets/web/qr_yide_mall.png" alt="商城二维码" style="width:260px;height:auto;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+    <img src="/qr.png" alt="商城二维码" style="width:260px;height:auto;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
     <div style="font-size:13px;color:var(--text-secondary);margin-top:8px;">微信扫一扫 · 在线选书下单</div>
   </div>
   <button class="btn-primary" id="shareDoneBtn">好的</button>
@@ -2080,9 +2080,11 @@ function init() {
     if (state.searchKey) state.activeCat = 'all';
     renderCategories();
     fetchProducts();
+    if (searchTimer) clearTimeout(searchTimer); // 取消等待中的防抖
   });
   document.getElementById('searchInput').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
+      if (searchTimer) clearTimeout(searchTimer);
       state.searchKey = e.target.value.trim();
       if (state.searchKey) state.activeCat = 'all';
       renderCategories();
@@ -2153,10 +2155,56 @@ function init() {
   updateCartBar();
   fetchProducts();
 
-  // Periodic cart sync
+  // Periodic cart sync + 商品数据热刷新（图片/库存热插拔）
   setInterval(function() {
-    if (state.products.length > 0) syncCartWithProducts();
+    if (state.products.length > 0) {
+      syncCartWithProducts();
+      refreshProductsSilent();
+    }
   }, 15000);
+}
+
+// ============================================================
+// 热插拔：静默刷新商品数据（图片/库存有变化时自动更新 UI）
+// ============================================================
+var _lastSilentRefresh = 0;
+function refreshProductsSilent() {
+  var now = Date.now();
+  if (now - _lastSilentRefresh < 20000) return; // 至少间隔 20s
+  _lastSilentRefresh = now;
+
+  var cat = state.activeCat;
+  var search = state.searchKey;
+  apiGet('/api/mall_products/?category=' + encodeURIComponent(cat) + '&search=' + encodeURIComponent(search))
+    .then(function(data) {
+      if (!data || data.status !== 'success') return;
+      var updated = (data.list || []).map(function(p) {
+        return {
+          id: p.id, name: p.name, price: String(p.price),
+          stock: getProductStock(p), category: p.category,
+          create_time: p.create_time, image_url: p.image_url || '',
+          productEmoji: getProductEmoji(p.name),
+          categoryColor: getCategoryColor(p.category)
+        };
+      });
+      // 对比是否有变化（图片/库存/数量）
+      var changed = updated.length !== state.products.length;
+      if (!changed) {
+        for (var i = 0; i < updated.length; i++) {
+          var o = state.products[i];
+          var n = updated[i];
+          if (o.image_url !== n.image_url || o.stock !== n.stock || o.price !== n.price) {
+            changed = true; break;
+          }
+        }
+      }
+      if (changed) {
+        state.products = updated;
+        renderProducts(updated);
+        syncCartWithProducts();
+      }
+    })
+    .catch(function() {}); // 静默失败，不干扰用户
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -3613,3 +3661,18 @@ def health_check(request):
 def wechat_verify(request):
     """微信域名所有权验证（MP 验证文件）"""
     return HttpResponse('c7075ba1e65258ad0c0c1ecb9f9bc774021f57bc', content_type='text/plain; charset=utf-8')
+
+
+def serve_qr_code(request):
+    """直接读取 QR 码图片文件（绕过 staticfiles finder，适配 EdgeOne 部署环境）"""
+    import os
+    from django.http import FileResponse, Http404, HttpResponse
+    qr_path = os.path.join(settings.BASE_DIR, 'web', 'static', 'web', 'qr_yide_mall.png')
+    if not os.path.exists(qr_path):
+        # 兜底：也检查 STATIC_ROOT
+        qr_path2 = os.path.join(settings.STATIC_ROOT, 'web', 'qr_yide_mall.png')
+        if os.path.exists(qr_path2):
+            qr_path = qr_path2
+        else:
+            raise Http404("QR code image not found on server")
+    return FileResponse(open(qr_path, 'rb'), content_type='image/png')

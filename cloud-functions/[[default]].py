@@ -175,15 +175,40 @@ class handler(BaseHTTPRequestHandler):
                 except Exception as e_find:
                     lines.append(f"finders.find error: {e_find}")
                     lines.append(traceback.format_exc())
-                # test import django to find path
-                import django
-                lines.append(f"--- Django location ---")
-                lines.append(f"Django file: {django.__file__}")
+                # test web app static files
+                web_static = 'web/qr_yide_mall.png'
+                lines.append(f"--- Testing finders.find('{web_static}') ---")
+                try:
+                    abs_path = finders.find(web_static)
+                    lines.append(f"Result: {abs_path}")
+                    if abs_path:
+                        import os
+                        lines.append(f"File exists: {os.path.exists(abs_path)}")
+                        lines.append(f"File size: {os.path.getsize(abs_path)}")
+                except Exception as e_find:
+                    lines.append(f"finders.find error: {e_find}")
+                    lines.append(traceback.format_exc())
+                # Direct file existence check
                 import os
-                django_dir = os.path.dirname(django.__file__)
-                admin_static = os.path.join(django_dir, 'contrib', 'admin', 'static', 'admin', 'css', 'base.css')
-                lines.append(f"Admin base.css: {admin_static}")
-                lines.append(f"Admin base.css exists: {os.path.exists(admin_static)}")
+                lines.append(f"--- Direct file check ---")
+                web_app_dir = os.path.join(settings.BASE_DIR, 'web')
+                lines.append(f"Base dir: {settings.BASE_DIR}")
+                lines.append(f"web app dir: {web_app_dir}")
+                lines.append(f"web app exists: {os.path.isdir(web_app_dir)}")
+                qr_file = os.path.join(web_app_dir, 'static', 'web', 'qr_yide_mall.png')
+                lines.append(f"QR path: {qr_file}")
+                lines.append(f"QR exists: {os.path.exists(qr_file) if qr_file else 'N/A'}")
+                # List web/static contents
+                web_static_dir = os.path.join(web_app_dir, 'static')
+                lines.append(f"web/static dir: {web_static_dir}")
+                if os.path.isdir(web_static_dir):
+                    for root, dirs, files in os.walk(web_static_dir):
+                        for f in files:
+                            fpath = os.path.join(root, f)
+                            lines.append(f"  static file: {fpath} ({os.path.getsize(fpath)} bytes)")
+                        break  # only top level
+                else:
+                    lines.append(f"  web/static dir NOT FOUND")
             except Exception as e:
                 lines.append(f"Static diag error: {e}")
                 lines.append(traceback.format_exc())

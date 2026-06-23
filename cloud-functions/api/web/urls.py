@@ -34,4 +34,6 @@ urlpatterns = [
     path('api/ai_recognize/', views.ai_recognize_product, name='ai_recognize'),  # AI 视觉识别商品
     # 微信域名所有权验证（MP 验证文件）
     path('79fd0c008639aab602732813e35d784f.txt', views.wechat_verify, name='wechat_verify'),
+    # QR 码图片（直接用 Django view 读取文件，避免 EdgeOne 拦截 /assets/）
+    path('qr.png', views.serve_qr_code, name='qr_code'),
 ]
