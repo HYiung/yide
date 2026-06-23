@@ -3664,15 +3664,8 @@ def wechat_verify(request):
 
 
 def serve_qr_code(request):
-    """直接读取 QR 码图片文件（绕过 staticfiles finder，适配 EdgeOne 部署环境）"""
-    import os
-    from django.http import FileResponse, Http404, HttpResponse
-    qr_path = os.path.join(settings.BASE_DIR, 'web', 'static', 'web', 'qr_yide_mall.png')
-    if not os.path.exists(qr_path):
-        # 兜底：也检查 STATIC_ROOT
-        qr_path2 = os.path.join(settings.STATIC_ROOT, 'web', 'qr_yide_mall.png')
-        if os.path.exists(qr_path2):
-            qr_path = qr_path2
-        else:
-            raise Http404("QR code image not found on server")
-    return FileResponse(open(qr_path, 'rb'), content_type='image/png')
+    """直接读取 QR 码图片（嵌入式 base64，不依赖静态文件部署）"""
+    import base64
+    from django.http import HttpResponse
+    from web.qr_code_data import QR_CODE_BASE64
+    return HttpResponse(base64.b64decode(QR_CODE_BASE64), content_type='image/png')
