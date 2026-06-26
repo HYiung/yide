@@ -139,7 +139,7 @@ class AdminUserAdmin(admin.ModelAdmin):
 # ===== 4. 商品库管理 =====
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('barcode', 'name', 'price', 'stock', 'image_url', 'colored_category', 'colored_stock', 'has_image', 'short_time', '_inline_css')
+    list_display = ('barcode', 'name', 'price', 'stock', 'image_url', 'colored_category', 'colored_stock', 'has_image', 'short_time')
     list_editable = ('name', 'price', 'stock', 'image_url')
     list_filter = ('category', 'create_time')
     search_fields = ('barcode', 'name')
@@ -195,19 +195,14 @@ class ProductAdmin(admin.ModelAdmin):
     has_image.short_description = '图片'
     has_image.admin_order_field = 'image_url'
 
-    def _inline_css(self, obj):
-        """嵌入 CSS 控制列宽（绕开 EdgeOne 静态文件剥离）"""
-        return format_html('<style>'
-            '#result_list .field-name input,'
-            '#result_list .field-image_url input {'
-            '  max-width:160px!important;overflow:hidden!important;text-overflow:ellipsis!important;'
-            '}'
-            '#result_list .field-name,'
-            '#result_list .field-image_url {'
-            '  max-width:160px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;'
-            '}'
-            '</style>')
-    _inline_css.short_description = ''
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """Keep editable product-list inputs compact without injecting <style> tags into rows."""
+        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if db_field.name in ('name', 'image_url') and formfield is not None:
+            formfield.widget.attrs.update({
+                'style': 'max-width:160px;overflow:hidden;text-overflow:ellipsis;',
+            })
+        return formfield
 
     def auto_categorize(self, request, queryset):
         CATEGORY_KEYWORDS = {
