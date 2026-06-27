@@ -33,6 +33,14 @@ def get_request_int(value, default=0):
         return default
 
 
+def safe_json_body(request):
+    """安全解析 JSON body，返回 (data_dict, error_response)"""
+    try:
+        return json.loads(request.body or '{}'), None
+    except json.JSONDecodeError:
+        return None, JsonResponse({'status': 'fail', 'msg': '请求数据格式不正确'})
+
+
 def _line_total_expr():
     """复用：price * quantity 表达式，避免重复定义"""
     return ExpressionWrapper(
@@ -606,7 +614,7 @@ input.addEventListener('keyup', function (e) {
   if (e.key !== 'Enter') return;
   var code = input.value.trim();
   if (!code) return;
-  if (/^\d{18}$/.test(code) && (code.startsWith('13') || code.startsWith('28'))) {
+  if (/^\\d{18}$/.test(code) && (code.startsWith('13') || code.startsWith('28'))) {
     doCheckout(); input.value = ''; return;
   }
   processBarcode(code);
@@ -2233,7 +2241,11 @@ window.addEventListener('pageshow', function (e) {
 
 def mall_home(request):
     from django.http import HttpResponse
-    response = HttpResponse(MALL_HTML)
+    from web.qr_code_data import QR_CODE_BASE64
+    # /qr.png → data:image/png;base64,... 内联，避免 EdgeOne/CDN 导致二维码加载失败
+    qr_uri = f"data:image/png;base64,{QR_CODE_BASE64}"
+    html = MALL_HTML.replace('src="/qr.png"', f'src="{qr_uri}"')
+    response = HttpResponse(html)
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
@@ -3008,7 +3020,7 @@ def ai_recognize_product(request):
         content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
 
         # 尝试从返回内容中提取 JSON
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        json_match = re.search(r'[{].*[}]', content, re.DOTALL)
         if not json_match:
             logger.error("AI 返回无法解析: %s", content[:300])
             return JsonResponse({
@@ -3128,13 +3140,26 @@ def quick_add_product(request):
 
 
 def get_mall_products(request):
+    limit = min(max(get_request_int(request.GET.get('limit'), 50), 1), 200)
     cat = request.GET.get('category', 'all')
-    search = request.GET.get('search', '').strip()
+    search = (request.GET.get('search', '') or '').strip()[:100]
+
+    VALID_CATEGORIES = dict(Product.CATEGORY_CHOICES)
+
+    # 非法分类直接返回空列表，避免误查全量
+    if cat != 'all' and cat not in VALID_CATEGORIES:
+        return JsonResponse({
+            'status': 'success',
+            'list': [],
+            'total_count': 0,
+            'limit': limit,
+            'category_counts': {},
+        }, json_dumps_params={'ensure_ascii': False})
 
     # 基础查询：必须有库存
     query = Product.objects.filter(stock__gt=0)
 
-    # 如果不是“全部”，则增加分类过滤条件
+    # 如果不是”全部”，则增加分类过滤条件
     if cat != 'all':
         query = query.filter(category=cat)
 
@@ -3142,13 +3167,26 @@ def get_mall_products(request):
     if search:
         query = query.filter(name__icontains=search)
 
+    total_count = query.count()
+
+    # 分类商品数量（仅全部 + 无搜索时返回，前端做角标用）
+    category_counts = {}
+    if cat == 'all' and not search:
+        for c_key, _ in Product.CATEGORY_CHOICES:
+            cnt = Product.objects.filter(category=c_key, stock__gt=0).count()
+            if cnt > 0:
+                category_counts[c_key] = cnt
+
     products = query.values('id', 'name', 'price', 'category', 'stock', 'create_time', 'image_url')
     # 按录入时间倒序（新品在前）
-    products = products.order_by('-create_time')
+    products = products.order_by('-create_time')[:limit]
 
     return JsonResponse({
         'status': 'success',
-        'list': list(products)
+        'list': list(products),
+        'total_count': total_count,
+        'limit': limit,
+        'category_counts': category_counts,
     }, json_dumps_params={'ensure_ascii': False})
 
 
@@ -3310,12 +3348,18 @@ def submit_order(request):
     try:
         data = json.loads(request.body or '{}')
         name = (data.get('name') or '').strip()
-        cart = data.get('cart') or []
+        cart = data.get('cart')
 
         if not name:
             return JsonResponse({'status': 'fail', 'msg': '请输入取货人姓名'})
+        if len(name) > 50:
+            return JsonResponse({'status': 'fail', 'msg': '取货人姓名过长'})
+        if not isinstance(cart, list):
+            return JsonResponse({'status': 'fail', 'msg': '购物车数据格式不正确'})
         if not cart:
             return JsonResponse({'status': 'fail', 'msg': '购物车不能为空'})
+        if len(cart) > 50:
+            return JsonResponse({'status': 'fail', 'msg': '单次最多下单50种商品'})
 
         with transaction.atomic():
             requested_items = {}
@@ -3324,7 +3368,14 @@ def submit_order(request):
                 count = int(item.get('num', 0))
                 if count <= 0:
                     return JsonResponse({'status': 'fail', 'msg': '商品数量必须大于0'})
+                if count > 99:
+                    return JsonResponse({'status': 'fail', 'msg': '单个商品最多购买99件'})
                 requested_items[product_id] = requested_items.get(product_id, 0) + count
+
+            # 合并重复商品后再次检查上限
+            for pid, cnt in requested_items.items():
+                if cnt > 99:
+                    return JsonResponse({'status': 'fail', 'msg': '单个商品最多购买99件'})
 
             order_items = []
             total = Decimal('0.00')
@@ -3445,10 +3496,9 @@ def verify_order(request):
     if request.method != 'POST':
         return JsonResponse({'status': 'fail', 'msg': '请使用POST请求'})
 
-    try:
-        data = json.loads(request.body or '{}')
-    except json.JSONDecodeError:
-        return JsonResponse({'status': 'fail', 'msg': '请求数据格式不正确'})
+    data, err = safe_json_body(request)
+    if err:
+        return err
 
     order_id = data.get('id')
     try:
@@ -3636,7 +3686,7 @@ def dashboard_all(request):
     })
 
 
-# 健康检查接口（用于部署后快速诊断）
+# 健康检查接口（用于部署后快速诊断，兼容 PostgreSQL / SQLite）
 def health_check(request):
     diagnostics = {
         'status': 'ok',
@@ -3648,21 +3698,31 @@ def health_check(request):
 
     try:
         from django.db import connection
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name")
-            tables = [row[0] for row in cursor.fetchall()]
-            diagnostics['tables']['all'] = tables
+        from django.apps import apps
 
-            # Check if auth_user table exists (required for admin login)
-            has_auth_user = 'auth_user' in tables
-            diagnostics['tables']['has_auth_user'] = has_auth_user
-            if has_auth_user:
-                cursor.execute("SELECT count(*) FROM auth_user")
-                diagnostics['tables']['user_count'] = cursor.fetchone()[0]
+        # 使用 Django introspection 而非原生的 information_schema（PostgreSQL 专属）
+        table_names = connection.introspection.table_names()
+        diagnostics['tables']['all'] = table_names
+
+        # 列出关键表是否存在
+        KEY_TABLES = ['web_product', 'web_order', 'web_orderitem', 'web_salehistory', 'web_cartitem', 'auth_user']
+        for t in KEY_TABLES:
+            diagnostics['tables'][t] = t in table_names
+
+        # 用户数 & 商品数（表存在时再查询）
+        if 'auth_user' in table_names:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            diagnostics['tables']['user_count'] = User.objects.count()
+
+        if 'web_product' in table_names:
+            from .models import Product
+            diagnostics['tables']['product_count'] = Product.objects.count()
 
         diagnostics['database'] = 'connected'
     except Exception as e:
-        diagnostics['database'] = f'error: {e}'
+        diagnostics['database'] = f'degraded: {e}'
+        diagnostics['status'] = 'degraded'
 
     return JsonResponse(diagnostics)
 
@@ -3673,8 +3733,17 @@ def wechat_verify(request):
 
 
 def serve_qr_code(request):
-    """直接读取 QR 码图片（嵌入式 base64，不依赖静态文件部署）"""
-    import base64
+    """优先读取随包 PNG 文件，失败时回退到内置 base64"""
+    import base64, os
     from django.http import HttpResponse
-    from web.qr_code_data import QR_CODE_BASE64
-    return HttpResponse(base64.b64decode(QR_CODE_BASE64), content_type='image/png')
+    from django.conf import settings
+    png_path = os.path.join(settings.BASE_DIR, 'web', 'static', 'web', 'qr_yide_mall.png')
+    if os.path.exists(png_path):
+        with open(png_path, 'rb') as f:
+            data = f.read()
+        response = HttpResponse(data, content_type='image/png')
+    else:
+        from web.qr_code_data import QR_CODE_BASE64
+        response = HttpResponse(base64.b64decode(QR_CODE_BASE64), content_type='image/png')
+    response['Cache-Control'] = 'public, max-age=86400'
+    return response

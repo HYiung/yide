@@ -215,6 +215,34 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write('\n'.join(lines).encode())
             return
 
+        # === QR 码图片：优先直接输出随包 PNG（Django 未启动时也能返回） ===
+        qr_paths = {'/qr.png', '/assets/web/qr_yide_mall.png'}
+        if urlparse(self.path).path in qr_paths:
+            qr_file = os.path.join(current_dir, 'api', 'web', 'static', 'web', 'qr_yide_mall.png')
+            if os.path.exists(qr_file):
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/png')
+                self.send_header('Cache-Control', 'public, max-age=86400')
+                self.end_headers()
+                with open(qr_file, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                import base64
+                try:
+                    from api.web.qr_code_data import QR_CODE_BASE64
+                    qr_data = base64.b64decode(QR_CODE_BASE64)
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'image/png')
+                    self.send_header('Cache-Control', 'public, max-age=86400')
+                    self.end_headers()
+                    self.wfile.write(qr_data)
+                except Exception:
+                    self.send_response(500)
+                    self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(b"QR code unavailable")
+            return
+
         # === 全部请求由 Django WSGI 处理（包括 /assets/ 静态文件路由） ===
 
         if _init_error:
