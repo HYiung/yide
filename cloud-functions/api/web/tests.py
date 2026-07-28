@@ -1,7 +1,7 @@
 import json
 from decimal import Decimal
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from .models import CartItem, Order, OrderItem, Product, SaleHistory
 
@@ -65,7 +65,27 @@ class SalesStatsTests(TestCase):
         self.assertEqual(response.json()['today_count'], 5)
 
 
+@override_settings(SHOPKEEPER_API_TOKEN='test-token')
 class OrderFlowTests(TestCase):
+    def test_verify_order_requires_shopkeeper_token(self):
+        order = Order.objects.create(customer_name='未授权', total_price=Decimal('0.00'), status=0)
+
+        response = self.client.post(
+            '/api/verify_order/',
+            data=json.dumps({'id': order.id}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['status'], 'fail')
+
+        query_token_response = self.client.post(
+            '/api/verify_order/?token=test-token',
+            data=json.dumps({'id': order.id}),
+            content_type='application/json',
+        )
+        self.assertEqual(query_token_response.status_code, 403)
+
     def test_submit_order_recomputes_total_and_verify_checks_stock(self):
         product = Product.objects.create(barcode='6900003', name='尺子', price=Decimal('4.00'), stock=2)
 
@@ -88,6 +108,7 @@ class OrderFlowTests(TestCase):
             '/api/verify_order/',
             data=json.dumps({'id': order.id}),
             content_type='application/json',
+            HTTP_X_SHOPKEEPER_TOKEN='test-token',
         )
 
         product.refresh_from_db()
@@ -107,6 +128,7 @@ class OrderFlowTests(TestCase):
             '/api/verify_order/',
             data=json.dumps({'id': order.id}),
             content_type='application/json',
+            HTTP_X_SHOPKEEPER_TOKEN='test-token',
         )
 
         in_stock.refresh_from_db()
@@ -119,12 +141,15 @@ class OrderFlowTests(TestCase):
         self.assertEqual(SaleHistory.objects.count(), 0)
 
 
+@override_settings(SHOPKEEPER_API_TOKEN='test-token')
 class InventoryApiTests(TestCase):
+    shopkeeper_headers = {'HTTP_X_SHOPKEEPER_TOKEN': 'test-token'}
+
     def test_low_stock_products_returns_threshold_matches(self):
         low = Product.objects.create(barcode='6900301', name='作业本', price=Decimal('2.50'), stock=2)
         Product.objects.create(barcode='6900302', name='笔芯', price=Decimal('1.00'), stock=8)
 
-        response = self.client.get('/api/low_stock_products/', {'threshold': 5})
+        response = self.client.get('/api/low_stock_products/', {'threshold': 5}, **self.shopkeeper_headers)
 
         data = response.json()
         self.assertEqual(data['status'], 'success')
@@ -136,7 +161,7 @@ class InventoryApiTests(TestCase):
         order = Order.objects.create(customer_name='王五', total_price=Decimal('6.00'), status=0)
         OrderItem.objects.create(order=order, product=product, count=2)
 
-        response = self.client.get('/api/pending_orders/')
+        response = self.client.get('/api/pending_orders/', **self.shopkeeper_headers)
 
         data = response.json()
         self.assertEqual(data['status'], 'success')

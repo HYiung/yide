@@ -35,7 +35,7 @@ if not SECRET_KEY:
     SECRET_KEY = 'insecure-dev-key-do-not-use-in-production'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-_DEBUG_RAW = os.environ.get('DJANGO_DEBUG', 'True').lower()
+_DEBUG_RAW = os.environ.get('DJANGO_DEBUG', 'False').lower()
 DEBUG = _DEBUG_RAW in ('1', 'true', 'yes', 'on')
 
 # 安全检查：生产环境应有 SECRET_KEY + DEBUG=False
@@ -63,6 +63,7 @@ WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
 
 # 店长入口密码（访问收银台 + 管理后台）
 SHOPKEEPER_PASSWORD = os.environ.get('SHOPKEEPER_PASSWORD', 'yide888')
+SHOPKEEPER_API_TOKEN = os.environ.get('SHOPKEEPER_API_TOKEN', '')
 
 # AI 视觉识别配置（商品拍照识别）
 # 兼容 OpenAI 格式的 API（OpenAI、Azure、本地模型等）

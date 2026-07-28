@@ -1,5 +1,6 @@
 import base64
 import json
+import hmac
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -9,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 import requests
 from django.conf import settings
 from django.contrib.auth import login as auth_login, logout as auth_logout, get_user_model
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Max, Q, Sum
 from django.http import HttpResponse, JsonResponse
@@ -17,6 +19,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
+from .services import complete_order
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,28 @@ def safe_json_body(request):
     except json.JSONDecodeError:
         return None, JsonResponse({'status': 'fail', 'msg': '请求数据格式不正确'})
 
+
+
+
+def is_shopkeeper_request(request):
+    """Return True for authenticated staff or requests carrying the shopkeeper API token."""
+    if request.user.is_authenticated and request.user.is_staff:
+        return True
+
+    expected = getattr(settings, 'SHOPKEEPER_API_TOKEN', '')
+    provided = request.headers.get('X-Shopkeeper-Token')
+    if expected and provided and hmac.compare_digest(provided, expected):
+        return True
+
+    return False
+
+
+def require_shopkeeper_api(request):
+    if is_shopkeeper_request(request):
+        return None
+    if not getattr(settings, 'SHOPKEEPER_API_TOKEN', '') and not settings.DEBUG:
+        return JsonResponse({'status': 'fail', 'msg': '店长 API Token 未配置，敏感接口已禁用'}, status=503)
+    return JsonResponse({'status': 'fail', 'msg': '需要店长权限'}, status=403)
 
 def _line_total_expr():
     """复用：price * quantity 表达式，避免重复定义"""
@@ -1602,19 +1627,29 @@ function isNewProduct(p) {
 // ============================================================
 // API
 // ============================================================
+function fetchWithTimeout(url, options, timeoutMs) {
+  options = options || {};
+  timeoutMs = timeoutMs || 8000;
+  if (window.AbortController) {
+    var controller = new AbortController();
+    var timer = setTimeout(function() { controller.abort(); }, timeoutMs);
+    options.signal = controller.signal;
+    return fetch(url, options).finally(function() { clearTimeout(timer); });
+  }
+  return fetch(url, options);
+}
 function apiGet(url) {
-  return fetch(API_BASE + url, { signal: AbortSignal.timeout(8000) }).then(function(r) {
+  return fetchWithTimeout(API_BASE + url, {}, 8000).then(function(r) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   });
 }
 function apiPost(url, data) {
-  return fetch(API_BASE + url, {
+  return fetchWithTimeout(API_BASE + url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-    signal: AbortSignal.timeout(8000)
-  }).then(function(r) {
+    body: JSON.stringify(data)
+  }, 8000).then(function(r) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   });
@@ -2356,9 +2391,7 @@ CASHIER_LOGIN_HTML = """<!DOCTYPE html>
 </div>
 
 <script>
-// 若有错误参数，显示错误提示
-var params = new URLSearchParams(window.location.search);
-if (params.get('error') === '1') {
+if (__LOGIN_ERROR__) {
   document.getElementById('errorMsg').textContent = '密码错误，请重试';
   document.getElementById('errorMsg').className = 'login-error show';
 }
@@ -2401,9 +2434,11 @@ def cashier_login(request):
             auth_login(request, shopkeeper, backend='django.contrib.auth.backends.ModelBackend')
             return redirect('cashier')
 
-        return redirect('/cashier/login/?error=1')
+        request.session['cashier_login_error'] = True
+        return redirect('cashier_login')
 
-    response = HttpResponse(CASHIER_LOGIN_HTML)
+    has_error = bool(request.session.pop('cashier_login_error', False))
+    response = HttpResponse(CASHIER_LOGIN_HTML.replace('__LOGIN_ERROR__', 'true' if has_error else 'false'))
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
@@ -3083,6 +3118,9 @@ def ai_recognize_product(request):
 
 # 小程序扫码入库（适合日常补货/新书上架）
 def quick_add_product(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     barcode = request.GET.get('barcode')
     name = request.GET.get('name')
     price = request.GET.get('price')
@@ -3208,8 +3246,9 @@ CATEGORY_EXCLUDE = {
 @csrf_exempt
 def auto_categorize_products(request):
     """一键自动分类：根据商品名称关键词分配分类（仅店长可用）"""
-    if not request.user.is_authenticated or not request.user.is_staff:
-        return JsonResponse({'status': 'fail', 'msg': '需要店长权限'})
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     from .models import Product
 
     count = 0
@@ -3304,8 +3343,9 @@ SEED_PRODUCTS = [
 @csrf_exempt
 def seed_sample_products(request):
     """一键部署示例商品数据到云端数据库（仅店长可用）"""
-    if not request.user.is_authenticated or not request.user.is_staff:
-        return JsonResponse({'status': 'fail', 'msg': '需要店长权限'})
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     from .models import Product
     from decimal import Decimal
 
@@ -3421,6 +3461,9 @@ def submit_order(request):
 
 
 def get_new_order_count(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     # 查询状态为 0 (待取货) 的订单数量
     count = Order.objects.filter(status=0).count()
     low_stock_count = Product.objects.filter(stock__lte=5).count()
@@ -3428,6 +3471,9 @@ def get_new_order_count(request):
 
 
 def get_pending_orders(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     limit = min(max(get_request_int(request.GET.get('limit'), 10), 1), 50)
     orders = Order.objects.filter(status=0).prefetch_related('items__product').order_by('create_time')[:limit]
     return JsonResponse({
@@ -3437,6 +3483,9 @@ def get_pending_orders(request):
 
 
 def get_low_stock_products(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     threshold = min(max(get_request_int(request.GET.get('threshold'), 5), 0), 9999)
     limit = min(max(get_request_int(request.GET.get('limit'), 10), 1), 100)
     base_query = Product.objects.filter(stock__lte=threshold)
@@ -3455,6 +3504,9 @@ def get_low_stock_products(request):
 
 # 1. 搜索订单接口
 def search_order(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     key = request.GET.get('key', '').strip()
     if not key:
         return JsonResponse({'status': 'fail', 'msg': '请输入搜索关键词'})
@@ -3496,46 +3548,32 @@ def verify_order(request):
     if request.method != 'POST':
         return JsonResponse({'status': 'fail', 'msg': '请使用POST请求'})
 
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
+
     data, err = safe_json_body(request)
     if err:
         return err
 
     order_id = data.get('id')
     try:
-        with transaction.atomic():
-            order = Order.objects.select_for_update().get(id=order_id, status=0)
-            locked_order_items = []
-            # 扣库存逻辑（和你 admin.py 里写的一样）
-            for item in order.items.select_related('product').all():
-                product = Product.objects.select_for_update().get(pk=item.product_id)
-                if product.stock < item.count:
-                    return JsonResponse({
-                        'status': 'fail',
-                        'msg': f'{product.name} 库存不足，当前库存 {product.stock}，需要 {item.count}'
-                    })
-                locked_order_items.append((item, product))
-
-            for item, product in locked_order_items:
-                product.stock -= item.count
-                product.save(update_fields=['stock'])
-                # 存入销售历史
-                SaleHistory.objects.create(
-                    product_name=product.name,
-                    price=product.price,
-                    quantity=item.count
-                )
-            # 修改订单状态
-            order.status = 1
-            order.save(update_fields=['status'])
+        order = Order.objects.get(id=order_id, status=0)
+        complete_order(order)
         return JsonResponse({'status': 'success'})
     except Order.DoesNotExist:
         return JsonResponse({'status': 'fail', 'msg': '未找到待取货订单'})
+    except ValidationError as e:
+        return JsonResponse({'status': 'fail', 'msg': '; '.join(e.messages)})
     except Exception as e:
         return JsonResponse({'status': 'fail', 'msg': str(e)})
 
 
 # 仪表盘统计数据（供网页端下方图表使用）
 def dashboard_stats(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     now = now_local()
     today = now.date()
 
@@ -3585,6 +3623,9 @@ def dashboard_stats(request):
 
 # 今日销售明细（点卡片弹窗用）
 def today_detail(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     now = now_local()
     today = now.date()
 
@@ -3626,6 +3667,9 @@ def today_detail(request):
 # 综合看板数据接口（小程序用，合并 5 个请求为 1 个，大幅减少延迟）
 def dashboard_all(request):
     """一键获取所有看板数据：购物车、今日营收、待取货、低库存"""
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     now = now_local()
     today = now.date()
 
