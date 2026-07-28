@@ -98,8 +98,16 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write('\n'.join(lines).encode())
             return
 
-        # === 手动触发迁移端点（先 makemigrations 再 migrate） ===
+        # === 手动触发迁移端点（只执行已提交迁移，需要 SHOPKEEPER_API_TOKEN） ===
         if urlparse(self.path).path == '/__migrate__':
+            token = self.headers.get('X-Shopkeeper-Token')
+            expected = os.environ.get('SHOPKEEPER_API_TOKEN')
+            if not expected or token != expected:
+                self.send_response(403)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.end_headers()
+                self.wfile.write('Forbidden'.encode())
+                return
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
             self.end_headers()
@@ -107,9 +115,6 @@ class handler(BaseHTTPRequestHandler):
             try:
                 from django.core.management import call_command
                 from io import StringIO
-                out = StringIO()
-                call_command('makemigrations', '--noinput', stdout=out, stderr=out)
-                msgs.append(f"Makemigrations:\n{out.getvalue()}")
                 out = StringIO()
                 call_command('migrate', '--noinput', stdout=out, stderr=out)
                 msgs.append(f"Migrate:\n{out.getvalue()}")
