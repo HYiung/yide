@@ -122,7 +122,7 @@ def serialize_order(order):
         'customer_name': order.customer_name,
         'total_price': str(order.total_price),
         'order_sn': order.order_sn,
-        'create_time': order.create_time.strftime('%Y-%m-%d %H:%M'),
+        'create_time': timezone.localtime(order.create_time).strftime('%Y-%m-%d %H:%M'),
         'items': items,
     }
 
