@@ -9,7 +9,6 @@ from django.http import HttpResponseRedirect
 from django.contrib import messages
 
 from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
-from .services import complete_order
 
 
 # ===== 辅助函数 =====
@@ -59,7 +58,7 @@ class OrderAdmin(admin.ModelAdmin):
     readonly_fields = ('order_sn', 'create_time')
     ordering = ('-create_time',)
     list_per_page = 20
-    actions = ['mark_as_completed']
+    actions = ['mark_as_completed', 'mark_as_pending']
     inlines = [OrderItemInline]
     list_select_related = True
 
@@ -92,28 +91,41 @@ class OrderAdmin(admin.ModelAdmin):
     def mark_as_completed(self, request, queryset):
         success = 0; errors = []
         for order in queryset:
-            if order.status == 1:
-                continue
+            if order.status == 1: continue
             try:
-                complete_order(order)
-                success += 1
-            except ValidationError as exc:
-                errors.append(f'{order.order_sn}: {"; ".join(exc.messages)}')
-                break
+                with transaction.atomic():
+                    for item in order.items.select_related('product').all():
+                        product = Product.objects.select_for_update().get(pk=item.product_id)
+                        if product.stock < item.count:
+                            errors.append(f'{order.order_sn}: {product.name} 库存不足')
+                            raise ValidationError('stop')
+                        product.stock -= item.count
+                        product.save(update_fields=['stock'])
+                        SaleHistory.objects.create(product_name=product.name, price=product.price, quantity=item.count)
+                    Order.objects.filter(pk=order.pk).update(status=1); success += 1
+            except ValidationError: break
         if success: self.message_user(request, f'✅ {success} 个订单已完成并扣库存', messages.SUCCESS)
         if errors:
             for e in errors: self.message_user(request, f'❌ {e}', messages.ERROR)
     mark_as_completed.short_description = '✅ 标记为已完成（扣库存）'
 
+    def mark_as_pending(self, request, queryset):
+        count = queryset.exclude(status=0).update(status=0)
+        self.message_user(request, f'已将 {count} 个订单恢复为待取货', messages.WARNING)
+    mark_as_pending.short_description = '⏳ 恢复为待取货'
+
     def save_model(self, request, obj, form, change):
-        should_complete = False
         if change and obj.status == 1:
             old_obj = Order.objects.get(pk=obj.pk)
-            should_complete = old_obj.status == 0
-            obj.status = old_obj.status
+            if old_obj.status == 0:
+                with transaction.atomic():
+                    for item in obj.items.select_related('product').all():
+                        product = Product.objects.select_for_update().get(pk=item.product_id)
+                        if product.stock < item.count:
+                            raise ValidationError(f'{product.name} 库存不足，当前库存 {product.stock}，需要 {item.count}')
+                        product.stock -= item.count; product.save(update_fields=['stock'])
+                        SaleHistory.objects.create(product_name=product.name, price=product.price, quantity=item.count)
         super().save_model(request, obj, form, change)
-        if should_complete:
-            complete_order(obj)
 
 
 # ===== 3. 店主身份确认 =====

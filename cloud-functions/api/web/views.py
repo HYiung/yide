@@ -1793,16 +1793,6 @@ function renderProducts(list) {
     + '</div>';
   }).join('');
 
-  // Event delegation for add-to-cart
-  el.addEventListener('click', function(e) {
-    var btn = e.target.closest('.btn-add');
-    if (!btn || btn.disabled) return;
-    var card = btn.closest('.product-card');
-    if (!card) return;
-    var id = Number(card.dataset.id);
-    var product = state.products.find(function(p) { return p.id === id; });
-    if (product) addToCart(product);
-  });
 }
 
 function escHtml(s) {
@@ -2202,6 +2192,17 @@ function init() {
   // Success
   document.getElementById('successDone').addEventListener('click', closeSuccess);
   document.getElementById('successOverlay').addEventListener('click', closeSuccess);
+
+  // Event delegation for add-to-cart (只绑定一次, 不在 renderProducts 中重复绑定)
+  document.getElementById('productGrid').addEventListener('click', function(e) {
+    var btn = e.target.closest('.btn-add');
+    if (!btn || btn.disabled) return;
+    var card = btn.closest('.product-card');
+    if (!card) return;
+    var id = Number(card.dataset.id);
+    var product = state.products.find(function(p) { return p.id === id; });
+    if (product) addToCart(product);
+  });
 
   renderCategories();
   updateCartBar();
