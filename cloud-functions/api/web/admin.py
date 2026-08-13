@@ -1,14 +1,13 @@
 from django.contrib import admin
-from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.utils.safestring import mark_safe
 from django.utils.html import format_html
-from django.db.models import Sum, DecimalField, ExpressionWrapper, F
 from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.contrib import messages
 
+from .catalog import auto_categorize_queryset
 from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
+from .services import complete_order
 
 
 # ===== 辅助函数 =====
@@ -89,24 +88,18 @@ class OrderAdmin(admin.ModelAdmin):
     # ---------- 批量操作 ----------
 
     def mark_as_completed(self, request, queryset):
-        success = 0; errors = []
+        success = 0
         for order in queryset:
-            if order.status == 1: continue
+            if order.status == 1:
+                continue
             try:
-                with transaction.atomic():
-                    for item in order.items.select_related('product').all():
-                        product = Product.objects.select_for_update().get(pk=item.product_id)
-                        if product.stock < item.count:
-                            errors.append(f'{order.order_sn}: {product.name} 库存不足')
-                            raise ValidationError('stop')
-                        product.stock -= item.count
-                        product.save(update_fields=['stock'])
-                        SaleHistory.objects.create(product_name=product.name, price=product.price, quantity=item.count)
-                    Order.objects.filter(pk=order.pk).update(status=1); success += 1
-            except ValidationError: break
-        if success: self.message_user(request, f'✅ {success} 个订单已完成并扣库存', messages.SUCCESS)
-        if errors:
-            for e in errors: self.message_user(request, f'❌ {e}', messages.ERROR)
+                complete_order(order)
+                success += 1
+            except Exception as exc:
+                self.message_user(request, f'❌ {order.order_sn}: {exc}', messages.ERROR)
+                break
+        if success:
+            self.message_user(request, f'✅ {success} 个订单已完成并扣库存', messages.SUCCESS)
     mark_as_completed.short_description = '✅ 标记为已完成（扣库存）'
 
     def mark_as_pending(self, request, queryset):
@@ -115,17 +108,15 @@ class OrderAdmin(admin.ModelAdmin):
     mark_as_pending.short_description = '⏳ 恢复为待取货'
 
     def save_model(self, request, obj, form, change):
+        should_complete = False
         if change and obj.status == 1:
             old_obj = Order.objects.get(pk=obj.pk)
-            if old_obj.status == 0:
-                with transaction.atomic():
-                    for item in obj.items.select_related('product').all():
-                        product = Product.objects.select_for_update().get(pk=item.product_id)
-                        if product.stock < item.count:
-                            raise ValidationError(f'{product.name} 库存不足，当前库存 {product.stock}，需要 {item.count}')
-                        product.stock -= item.count; product.save(update_fields=['stock'])
-                        SaleHistory.objects.create(product_name=product.name, price=product.price, quantity=item.count)
+            should_complete = old_obj.status == 0
+            if should_complete:
+                obj.status = 0
         super().save_model(request, obj, form, change)
+        if should_complete:
+            complete_order(obj)
 
 
 # ===== 3. 店主身份确认 =====
@@ -205,28 +196,7 @@ class ProductAdmin(admin.ModelAdmin):
         return formfield
 
     def auto_categorize(self, request, queryset):
-        CATEGORY_KEYWORDS = {
-            'books': ['名著', '阅读', '作文', '语文', '英语', '数学', '教材', '练习册', '字典', '词典', '字帖', '绘本', '古诗词', '唐诗', '百科', '知识'],
-            'pens': ['中性笔', '圆珠笔', '签字笔', '马克笔', '荧光笔', '水彩笔', '蜡笔', '彩笔', '画笔', '白板笔', '铅笔', '钢笔', '笔芯', '替芯', '墨水', '钢笔水'],
-            'papers': ['笔记本', '作业本', '本子', '便签', '方格本', '稿纸', '纸', '打印纸', '复印纸', '活页', '线圈本', '胶套本', '文件袋', '档案袋', '资料册'],
-            'stationery': ['橡皮', '擦', '尺', '圆规', '剪刀', '订书', '打孔', '笔袋', '文具盒', '书包', '削笔', '卷笔', '垫板', '美工刀', '切纸', '回形针', '长尾夹', '图钉'],
-            'correction': ['修正', '涂改', '改正', '修正带', '修正液', '改正带', '固体胶', '胶水', '胶棒', '胶带', '胶擦', '双面胶'],
-        }
-        CATEGORY_EXCLUDE = {'books': ['订', '装订', '封']}
-        count = 0
-        for product in queryset:
-            assigned = False
-            for cat, keywords in CATEGORY_KEYWORDS.items():
-                exclude_words = CATEGORY_EXCLUDE.get(cat, [])
-                if any(kw in product.name for kw in exclude_words): continue
-                for kw in keywords:
-                    if kw in product.name:
-                        if product.category != cat:
-                            product.category = cat; product.save(update_fields=['category']); count += 1
-                        assigned = True; break
-                if assigned: break
-            if not assigned and product.category != 'others':
-                product.category = 'others'; product.save(update_fields=['category']); count += 1
+        count = auto_categorize_queryset(queryset)
         self.message_user(request, f'已自动分类 {count} 个商品')
     auto_categorize.short_description = '🤖 按名称关键词自动分类'
 

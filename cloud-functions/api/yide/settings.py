@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 import sys
 import warnings
+from django.core.exceptions import ImproperlyConfigured
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -42,9 +43,7 @@ DEBUG = _DEBUG_RAW in ('1', 'true', 'yes', 'on')
 if DEBUG and not os.environ.get('DJANGO_SECRET_KEY'):
     warnings.warn("DEBUG=True + 默认 SECRET_KEY — 仅限本地开发，请勿用于生产环境！")
 elif not DEBUG and SECRET_KEY == 'insecure-dev-key-do-not-use-in-production':
-    import sys as _sys
-    print("FATAL: 生产环境必须设置 DJANGO_SECRET_KEY！", file=_sys.stderr)
-    # 不阻止启动，但打印严重警告
+    raise ImproperlyConfigured('生产环境必须设置 DJANGO_SECRET_KEY')
 
 ALLOWED_HOSTS = [
     '.vercel.app',

@@ -47,6 +47,7 @@ export CLOUD_DATABASE_URL="postgresql://user:pass@host/db"
 
 # 店长入口密码（收银台+管理后台）
 export SHOPKEEPER_PASSWORD="设定你的店长密码"
+export SHOPKEEPER_API_TOKEN="生成一个高强度随机Token，用于核销/入库等敏感API"
 
 # 微信小程序（可选，仅小程序需要）
 export WECHAT_APPID="你的小程序AppID"
@@ -98,7 +99,7 @@ python manage.py runserver 0.0.0.0:8000
 | `GET /get_cart_status/` | 查看当前购物车 |
 | `GET /reset_cart/` | 清空购物车（不扣库存） |
 | `GET /checkout_cart/` | 结账（扣库存+记销售） |
-| `POST /api/quick_add_product/` | 入库商品 |
+| `GET /quick_add_product/` | 入库商品（需 `X-Shopkeeper-Token`） |
 
 ### 统计/看板
 | 端点 | 功能 |
@@ -114,17 +115,17 @@ python manage.py runserver 0.0.0.0:8000
 |---|---|
 | `GET /api/mall_products/?category=&search=` | 商品列表 |
 | `POST /api/submit_order/` | 提交订单 |
-| `GET /api/pending_orders/` | 待取货订单列表 |
-| `POST /api/verify_order/` | 核销取货 |
-| `GET /api/search_order/?key=` | 搜索订单 |
+| `GET /api/pending_orders/` | 待取货订单列表（需店长权限） |
+| `POST /api/verify_order/` | 核销取货（需 `X-Shopkeeper-Token`） |
+| `GET /api/search_order/?key=` | 搜索订单（需店长权限） |
 
 ### 工具
 | 端点 | 功能 |
 |---|---|
 | `POST /api/ai_recognize/` | 🤖 AI 视觉识别商品 |
 | `GET /api/health/` | 全量健康检查 |
-| `GET /api/auto_categorize/` | 一键自动分类 |
-| `GET /api/seed_products/` | 一键部署示例商品 |
+| `POST /api/auto_categorize/` | 一键自动分类（需 `X-Shopkeeper-Token`） |
+| `POST /api/seed_products/` | 一键部署示例商品（需 `X-Shopkeeper-Token`） |
 
 ## 目录结构
 

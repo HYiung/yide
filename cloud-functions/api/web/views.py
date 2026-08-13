@@ -18,6 +18,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
+from .catalog import LOW_STOCK_THRESHOLD, auto_categorize_queryset, low_stock_queryset
 from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
 from .services import complete_order
 
@@ -3230,55 +3231,18 @@ def get_mall_products(request):
 
 
 # 根据商品名称关键词自动分类（供管理员一键整理用）
-# 参考文具行业标准分类体系：书写工具/本册纸品/学生文具/修正粘合/书籍/其他
-CATEGORY_KEYWORDS = {
-    'books': ['名著', '阅读', '作文', '语文', '英语', '数学', '教材', '练习册', '字典', '词典', '字帖', '绘本', '古诗词', '唐诗', '百科', '知识'],
-    'pens': ['中性笔', '圆珠笔', '签字笔', '马克笔', '荧光笔', '水彩笔', '蜡笔', '彩笔', '画笔', '白板笔', '铅笔', '钢笔', '笔芯', '替芯', '墨水', '钢笔水'],
-    'papers': ['笔记本', '作业本', '本子', '便签', '方格本', '稿纸', '纸', '打印纸', '复印纸', '活页', '线圈本', '胶套本', '文件袋', '档案袋', '资料册'],
-    'stationery': ['橡皮', '擦', '尺', '圆规', '剪刀', '订书', '打孔', '笔袋', '文具盒', '书包', '削笔', '卷笔', '垫板', '美工刀', '切纸', '回形针', '长尾夹', '图钉'],
-    'correction': ['修正', '涂改', '改正', '修正带', '修正液', '改正带', '固体胶', '胶水', '胶棒', '胶带', '胶擦', '双面胶'],
-}
-
-# 排除关键词：商品名称含这些词则跳过该分类（解决"订书机"含"书"误归名著）
-CATEGORY_EXCLUDE = {
-    'books': ['订', '装订', '封'],
-}
+# 关键词规则集中在 catalog.py，供 views/admin 共用。
 
 @csrf_exempt
 def auto_categorize_products(request):
     """一键自动分类：根据商品名称关键词分配分类（仅店长可用）"""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'fail', 'msg': '请使用POST请求'}, status=405)
     auth_error = require_shopkeeper_api(request)
     if auth_error:
         return auth_error
-    from .models import Product
 
-    count = 0
-    for product in Product.objects.all():
-        old_cat = product.category
-        assigned = False
-        for cat, keywords in CATEGORY_KEYWORDS.items():
-            # 排除检查：如果商品名包含该分类的排除词，跳过
-            exclude_words = CATEGORY_EXCLUDE.get(cat, [])
-            if any(kw in product.name for kw in exclude_words):
-                continue
-            # 关键词匹配
-            for kw in keywords:
-                if kw in product.name:
-                    if product.category != cat:
-                        product.category = cat
-                        product.save(update_fields=['category'])
-                        count += 1
-                    assigned = True
-                    break
-            if assigned:
-                break
-
-        # 如果所有分类都没匹配上，且原来的分类也不是 others，归入 others
-        if not assigned and old_cat != 'others':
-            product.category = 'others'
-            product.save(update_fields=['category'])
-            count += 1
-
+    count = auto_categorize_queryset(Product.objects.all())
     return JsonResponse({'status': 'success', 'updated': count})
 
 
@@ -3344,6 +3308,8 @@ SEED_PRODUCTS = [
 @csrf_exempt
 def seed_sample_products(request):
     """一键部署示例商品数据到云端数据库（仅店长可用）"""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'fail', 'msg': '请使用POST请求'}, status=405)
     auth_error = require_shopkeeper_api(request)
     if auth_error:
         return auth_error
@@ -3467,7 +3433,7 @@ def get_new_order_count(request):
         return auth_error
     # 查询状态为 0 (待取货) 的订单数量
     count = Order.objects.filter(status=0).count()
-    low_stock_count = Product.objects.filter(stock__lte=5).count()
+    low_stock_count = low_stock_queryset().count()
     return JsonResponse({'count': count, 'low_stock_count': low_stock_count})
 
 
@@ -3487,7 +3453,7 @@ def get_low_stock_products(request):
     auth_error = require_shopkeeper_api(request)
     if auth_error:
         return auth_error
-    threshold = min(max(get_request_int(request.GET.get('threshold'), 5), 0), 9999)
+    threshold = min(max(get_request_int(request.GET.get('threshold'), LOW_STOCK_THRESHOLD), 0), 9999)
     limit = min(max(get_request_int(request.GET.get('limit'), 10), 1), 100)
     base_query = Product.objects.filter(stock__lte=threshold)
     total_count = base_query.count()
@@ -3603,7 +3569,7 @@ def dashboard_stats(request):
 
     # 低库存商品
     low_stock = list(
-        Product.objects.filter(stock__lte=5)
+        low_stock_queryset()
         .order_by('stock')[:10]
         .values('name', 'stock', 'price')
     )
@@ -3695,14 +3661,14 @@ def dashboard_all(request):
 
     # 3. 待取货订单数 & 低库存数
     pending_count = Order.objects.filter(status=0).count()
-    low_stock_count = Product.objects.filter(stock__lte=5).count()
+    low_stock_count = low_stock_queryset().count()
 
     # 4. 待取货订单列表（前5条）
     orders = Order.objects.filter(status=0).prefetch_related('items__product').order_by('create_time')[:5]
 
     # 5. 低库存商品列表（前5条）
     low_stock = list(
-        Product.objects.filter(stock__lte=5)
+        low_stock_queryset()
         .order_by('stock', 'name')[:5]
         .values('id', 'barcode', 'name', 'stock', 'price', 'category')
     )
