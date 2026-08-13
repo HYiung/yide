@@ -11,7 +11,7 @@ class ProductLookupTests(TestCase):
         response = self.client.get('/get_product_by_barcode/', {'barcode': 'missing'})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['status'], 'error')
+        self.assertEqual(response.json()['status'], 'fail')
 
 
 class CartFlowTests(TestCase):
@@ -23,7 +23,7 @@ class CartFlowTests(TestCase):
         self.assertEqual(first_response.json()['current_qty'], 1)
 
         second_response = self.client.get('/add_item/', {'barcode': '6900001'})
-        self.assertEqual(second_response.json()['status'], 'error')
+        self.assertEqual(second_response.json()['status'], 'fail')
         self.assertEqual(CartItem.objects.get(product__barcode='6900001').quantity, 1)
 
     def test_checkout_refuses_to_create_negative_stock(self):
@@ -33,7 +33,7 @@ class CartFlowTests(TestCase):
         response = self.client.get('/checkout_cart/')
 
         product.refresh_from_db()
-        self.assertEqual(response.json()['status'], 'error')
+        self.assertEqual(response.json()['status'], 'fail')
         self.assertEqual(product.stock, 1)
         self.assertEqual(SaleHistory.objects.count(), 0)
 
@@ -47,7 +47,7 @@ class CartFlowTests(TestCase):
 
         in_stock.refresh_from_db()
         short_stock.refresh_from_db()
-        self.assertEqual(response.json()['status'], 'error')
+        self.assertEqual(response.json()['status'], 'fail')
         self.assertEqual(in_stock.stock, 5)
         self.assertEqual(short_stock.stock, 1)
         self.assertEqual(SaleHistory.objects.count(), 0)
