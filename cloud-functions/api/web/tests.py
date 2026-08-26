@@ -1,6 +1,8 @@
 import json
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
+from django.contrib.staticfiles import finders
 from django.test import TestCase, override_settings
 
 from .models import CartItem, Order, OrderItem, Product, SaleHistory
@@ -184,3 +186,30 @@ class InventoryApiTests(TestCase):
 
         self.assertEqual(response.json()['status'], 'fail')
         self.assertEqual(Order.objects.count(), 0)
+
+
+class CashierAssetsTests(TestCase):
+    def test_cashier_uses_cacheable_static_assets(self):
+        user = get_user_model().objects.create_user(
+            username='cashier', password='test-password', is_staff=True,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get('/cashier/')
+        html = response.content.decode()
+
+        self.assertContains(response, '/assets/web/css/cashier.css')
+        self.assertContains(response, '/assets/web/js/cashier.js')
+        self.assertNotIn('<style>', html)
+        self.assertNotIn('<script>', html)
+        self.assertIsNotNone(finders.find('web/css/cashier.css'))
+        self.assertIsNotNone(finders.find('web/js/cashier.js'))
+
+    def test_login_error_is_exposed_without_inline_javascript(self):
+        self.client.post('/cashier/login/', {'password': 'wrong'})
+
+        response = self.client.get('/cashier/login/')
+
+        self.assertContains(response, 'data-login-error="true"')
+        self.assertContains(response, '/assets/web/js/cashier-login.js')
+        self.assertNotIn('__LOGIN_ERROR__', response.content.decode())
