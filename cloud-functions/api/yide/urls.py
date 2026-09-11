@@ -2,7 +2,12 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.contrib.staticfiles.views import serve as static_serve
 
+from web import views as web_views
+
 urlpatterns = [
+    # 必须放在 admin/ 之前：后台点「退出」后回店长入口，
+    # 而不是 Django 默认那个带「重新登录」链接的登出页 / admin 登录页
+    path('admin/logout/', web_views.admin_logout, name='admin_logout'),
     path('admin/', admin.site.urls),
     path('', include('web.urls')),
 ]

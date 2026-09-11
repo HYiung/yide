@@ -2,9 +2,9 @@ import json
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.contrib.staticfiles import finders
 from django.test import TestCase, override_settings
 
+from . import webassets
 from .models import CartItem, Order, OrderItem, Product, SaleHistory
 
 
@@ -202,8 +202,34 @@ class CashierAssetsTests(TestCase):
         self.assertContains(response, '/assets/web/js/cashier.js')
         self.assertNotIn('<style>', html)
         self.assertNotIn('<script>', html)
-        self.assertIsNotNone(finders.find('web/css/cashier.css'))
-        self.assertIsNotNone(finders.find('web/js/cashier.js'))
+
+    def test_web_assets_are_served_from_the_embedded_module(self):
+        """资源由 Django 视图直接输出，不依赖 staticfiles finder。
+
+        EdgeOne 只部署 .py 文件，web/static/ 下的 css/js 会被剥离，
+        finders.find() 在线上返回 None，所以真正要保证的是视图能把内容吐出来。
+        """
+        response = self.client.get(webassets.url('web/css/cashier.css'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/css; charset=utf-8')
+        self.assertEqual(
+            response.content.decode(),
+            webassets.ASSETS['web/css/cashier.css'][0],
+        )
+        self.assertIn('immutable', response['Cache-Control'])
+
+    def test_asset_url_carries_the_version(self):
+        self.assertIn(f'?v={webassets.VERSION}', webassets.url('web/js/mall.js'))
+
+    def test_unknown_web_asset_is_not_found(self):
+        self.assertEqual(self.client.get('/assets/web/css/nope.css').status_code, 404)
+
+    def test_admin_static_files_still_use_the_staticfiles_route(self):
+        """只截获 web/css、web/js，不能把 /assets/admin/** 也一起吃掉。"""
+        response = self.client.get('/assets/admin/css/base.css')
+
+        self.assertEqual(response.status_code, 200)
 
     def test_login_error_is_exposed_without_inline_javascript(self):
         self.client.post('/cashier/login/', {'password': 'wrong'})
@@ -213,3 +239,36 @@ class CashierAssetsTests(TestCase):
         self.assertContains(response, 'data-login-error="true"')
         self.assertContains(response, '/assets/web/js/cashier-login.js')
         self.assertNotIn('__LOGIN_ERROR__', response.content.decode())
+
+
+class AdminLogoutTests(TestCase):
+    """后台退出后回店长入口，不再落到 Django 默认的 admin 登录页。"""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='shopkeeper', password='test-password',
+            is_staff=True, is_superuser=True,
+        )
+
+    def test_admin_logout_redirects_to_shopkeeper_login(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post('/admin/logout/')
+
+        self.assertRedirects(response, '/cashier/login/')
+
+    def test_admin_logout_ends_the_session(self):
+        self.client.force_login(self.user)
+        self.client.post('/admin/logout/')
+
+        response = self.client.get('/cashier/')
+
+        self.assertRedirects(response, '/cashier/login/')
+
+    def test_admin_logout_does_not_render_the_admin_logged_out_page(self):
+        self.client.force_login(self.user)
+
+        body = self.client.post('/admin/logout/', follow=True).content.decode()
+
+        self.assertIn('店长入口', body)
+        self.assertNotIn('Django administration', body)

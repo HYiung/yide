@@ -18,11 +18,49 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
+from . import webassets
 from .catalog import LOW_STOCK_THRESHOLD, auto_categorize_queryset, low_stock_queryset
 from .models import AdminUser, CartItem, Order, OrderItem, Product, SaleHistory
 from .services import complete_order
 
 logger = logging.getLogger(__name__)
+
+
+def serve_web_asset(request, path):
+    """输出内嵌的 CSS / JS 资源（见 webassets.py 顶部说明）。
+
+    EdgeOne 只部署 .py 文件，static/ 目录下的资源会被剥离，所以这里直接
+    从 Python 模块读内容返回，而不是交给 staticfiles finder。
+    """
+    asset = webassets.ASSETS.get(path)
+    if asset is None:
+        return HttpResponse(status=404)
+    content, content_type = asset
+    response = HttpResponse(content, content_type=content_type)
+    # URL 里带了 ?v=<内容哈希>，内容一变 URL 就变，可以放心长缓存
+    if request.GET.get('v') == webassets.VERSION:
+        response['Cache-Control'] = 'public, max-age=31536000, immutable'
+    else:
+        response['Cache-Control'] = 'no-cache'
+    return response
+
+
+def _with_asset_version(html):
+    """给页面 HTML 里的 /assets/... 资源地址补上 ?v=<版本号>"""
+    for path in webassets.ASSETS:
+        bare = '/assets/' + path
+        html = html.replace('"%s"' % bare, '"%s"' % webassets.url(path))
+    return html
+
+
+def admin_logout(request):
+    """后台退出后回店长入口，而不是 Django 默认的 admin 登录页。
+
+    在 yide/urls.py 里注册在 admin/ 之前，覆盖 AdminSite 自带的登出视图
+    （后台右上角「退出」是 POST 到 admin:logout，所以这里不做方法限制）。
+    """
+    auth_logout(request)
+    return redirect('cashier_login')
 
 
 def now_local():
@@ -438,7 +476,8 @@ def mall_home(request):
     from web.qr_code_data import QR_CODE_BASE64
     # /qr.png → data:image/png;base64,... 内联，避免 EdgeOne/CDN 导致二维码加载失败
     qr_uri = f"data:image/png;base64,{QR_CODE_BASE64}"
-    html = MALL_HTML.replace('src="/qr.png"', f'src="{qr_uri}"')
+    html = _with_asset_version(MALL_HTML)
+    html = html.replace('src="/qr.png"', f'src="{qr_uri}"')
     response = HttpResponse(html)
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
     response['Pragma'] = 'no-cache'
@@ -449,7 +488,7 @@ def mall_home(request):
 def cash_register(request):
     if not request.user.is_authenticated or not request.user.is_staff:
         return redirect('cashier_login')
-    response = HttpResponse(CASHIER_HTML)
+    response = HttpResponse(_with_asset_version(CASHIER_HTML))
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
@@ -527,7 +566,8 @@ def cashier_login(request):
         return redirect('cashier_login')
 
     has_error = bool(request.session.pop('cashier_login_error', False))
-    response = HttpResponse(CASHIER_LOGIN_HTML.replace('__LOGIN_ERROR__', 'true' if has_error else 'false'))
+    html = _with_asset_version(CASHIER_LOGIN_HTML)
+    response = HttpResponse(html.replace('__LOGIN_ERROR__', 'true' if has_error else 'false'))
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'

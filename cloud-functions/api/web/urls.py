@@ -1,7 +1,11 @@
-from django.urls import path
+from django.urls import path, re_path
 from . import views
 
 urlpatterns = [
+    # 页面用的 CSS / JS（内容内嵌在 webassets.py，见该文件顶部说明）。
+    # 只匹配 web/css、web/js 下的资源，不能写成 assets/<path> 通配，
+    # 否则会把 /assets/admin/** 也吃掉，导致 admin 后台样式失效。
+    re_path(r'^assets/(?P<path>web/(?:css|js)/[A-Za-z0-9_.-]+)$', views.serve_web_asset, name='web_asset'),
     # 根路径 → 线上商城 H5（顾客线上下单）
     path('', views.mall_home, name='mall'),
     path('cashier/', views.cash_register, name='cashier'),  # 店长收银台 + 看板（需登录）

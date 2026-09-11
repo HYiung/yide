@@ -174,7 +174,6 @@ class handler(BaseHTTPRequestHandler):
                     abs_path = finders.find(test_path)
                     lines.append(f"Result: {abs_path}")
                     if abs_path:
-                        import os
                         lines.append(f"File exists: {os.path.exists(abs_path)}")
                         lines.append(f"File size: {os.path.getsize(abs_path)}")
                 except Exception as e_find:
@@ -187,14 +186,12 @@ class handler(BaseHTTPRequestHandler):
                     abs_path = finders.find(web_static)
                     lines.append(f"Result: {abs_path}")
                     if abs_path:
-                        import os
                         lines.append(f"File exists: {os.path.exists(abs_path)}")
                         lines.append(f"File size: {os.path.getsize(abs_path)}")
                 except Exception as e_find:
                     lines.append(f"finders.find error: {e_find}")
                     lines.append(traceback.format_exc())
                 # Direct file existence check
-                import os
                 lines.append(f"--- Direct file check ---")
                 web_app_dir = os.path.join(settings.BASE_DIR, 'web')
                 lines.append(f"Base dir: {settings.BASE_DIR}")
@@ -214,6 +211,14 @@ class handler(BaseHTTPRequestHandler):
                         break  # only top level
                 else:
                     lines.append(f"  web/static dir NOT FOUND")
+                # 内嵌资源模块（页面 CSS/JS 的实际来源）
+                lines.append(f"--- Embedded web assets ---")
+                try:
+                    from web import webassets
+                    lines.append(f"webassets.VERSION: {webassets.VERSION}")
+                    lines.append(f"webassets assets: {sorted(webassets.ASSETS)}")
+                except Exception as e_asset:
+                    lines.append(f"webassets import FAILED: {e_asset}")
             except Exception as e:
                 lines.append(f"Static diag error: {e}")
                 lines.append(traceback.format_exc())
