@@ -61,7 +61,10 @@ WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
 WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
 
 # 店长入口密码（访问收银台 + 管理后台）
-SHOPKEEPER_PASSWORD = os.environ.get('SHOPKEEPER_PASSWORD', 'yide888')
+# ⚠️ 必须由环境变量提供，不要在这里写死默认值：本仓库是公开的，
+#    写死等于把后台密码公之于众（旧版本曾硬编码 'yide888'，已泄露在 git 历史里）。
+#    未配置时收银台登录会 fail closed（见 views.cashier_login）。
+SHOPKEEPER_PASSWORD = os.environ.get('SHOPKEEPER_PASSWORD', '')
 SHOPKEEPER_API_TOKEN = os.environ.get('SHOPKEEPER_API_TOKEN', '')
 
 # AI 视觉识别配置（商品拍照识别）

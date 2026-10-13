@@ -81,6 +81,48 @@ class CashierApiAuthTests(TestCase):
         self.assertIn(response.status_code, (401, 403, 503))
 
 
+class CashierLoginTests(TestCase):
+    """收银台登录：密码来自环境变量，未配置时必须 fail closed。
+
+    背景：settings.py 曾硬编码默认密码 'yide888'，而仓库是公开的，等于后台密码公开。
+    移除默认值后，若环境变量缺失，绝不能让空密码通过。
+    """
+
+    LOGIN_URL = '/cashier/login/'
+
+    def _is_logged_in(self):
+        return '_auth_user_id' in self.client.session
+
+    @override_settings(SHOPKEEPER_PASSWORD='correct-horse')
+    def test_login_succeeds_with_configured_password(self):
+        response = self.client.post(self.LOGIN_URL, {'password': 'correct-horse'})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(self._is_logged_in())
+
+    @override_settings(SHOPKEEPER_PASSWORD='correct-horse')
+    def test_login_rejects_wrong_password(self):
+        response = self.client.post(self.LOGIN_URL, {'password': 'yide888'})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(self._is_logged_in())
+
+    @override_settings(SHOPKEEPER_PASSWORD='correct-horse')
+    def test_login_rejects_empty_password_when_configured(self):
+        response = self.client.post(self.LOGIN_URL, {'password': ''})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(self._is_logged_in())
+
+    @override_settings(SHOPKEEPER_PASSWORD='')
+    def test_login_fails_closed_when_password_unset(self):
+        """环境变量没配时，空密码不能登录（否则比默认密码还危险）。"""
+        response = self.client.post(self.LOGIN_URL, {'password': ''})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(self._is_logged_in())
+
+
 class ProductLookupTests(ShopkeeperSessionMixin, TestCase):
     def test_missing_barcode_returns_json_error(self):
         # 本地无此条码时会去查 Open Library / Google Books / Bing 等外部源，

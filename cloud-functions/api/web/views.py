@@ -537,7 +537,14 @@ def cashier_login(request):
 
     if request.method == 'POST':
         pwd = request.POST.get('password', '')
-        if pwd == settings.SHOPKEEPER_PASSWORD:
+        expected = settings.SHOPKEEPER_PASSWORD
+        # expected 为空 = SHOPKEEPER_PASSWORD 环境变量没配。此时必须 fail closed：
+        # 不能退化成「空密码可登录」。同时用 compare_digest 做时序安全比较。
+        if not expected:
+            logging.getLogger(__name__).error(
+                'SHOPKEEPER_PASSWORD 未配置，收银台登录已拒绝（fail closed）'
+            )
+        elif pwd and hmac.compare_digest(pwd, expected):
             User = get_user_model()
             shopkeeper, created = User.objects.get_or_create(
                 username='shopkeeper',
