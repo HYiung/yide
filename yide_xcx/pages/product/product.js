@@ -174,6 +174,7 @@ Page({
       url: uploadUrl,
       filePath: filePath,
       name: 'image',
+      header: api.authHeader(), // AI 识别接口需要店长鉴权，uploadFile 不走 request()
       timeout: 60000, // 60 秒超时（AI 视觉识别可能较慢）
       success(res) {
         console.log('AI 识别响应：', res.statusCode, (res.data || '').slice(0, 200));

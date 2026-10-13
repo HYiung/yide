@@ -889,6 +889,9 @@ def _fetch_duckduckgo_search(barcode):
 
 
 def get_product_by_barcode(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     barcode = request.GET.get('barcode')
     if not barcode:
         return JsonResponse({'status': 'fail', 'msg': '条码不能为空'})
@@ -918,6 +921,9 @@ def get_product_by_barcode(request):
 
 # 小程序获取当前清单的接口
 def get_cart_status(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     items = CartItem.objects.select_related('product').all().order_by('-added_at')
     data = []
     total = Decimal('0.00')
@@ -937,6 +943,9 @@ def get_cart_status(request):
 
 # 扫码枪调用的接口：负责向购物车添加商品
 def add_item(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     barcode = request.GET.get('barcode')
     if not barcode:
         return JsonResponse({'status': 'fail', 'msg': '条码不能为空'})
@@ -969,12 +978,18 @@ def add_item(request):
 
 # 按钮 A：单纯清空（网页端用，用于扫错重来）
 def reset_cart(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     CartItem.objects.all().delete()
     return JsonResponse({'status': 'success', 'msg': '账单已重置'})
 
 
 # 删除购物车中的单个商品（按条码或商品ID）
 def remove_cart_item(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     barcode = request.GET.get('barcode')
     product_id = request.GET.get('product_id')
     if barcode:
@@ -988,6 +1003,9 @@ def remove_cart_item(request):
 
 # 修改购物车中某个商品的数量（按条码或商品ID）
 def update_cart_item(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     barcode = request.GET.get('barcode')
     product_id = request.GET.get('product_id')
     qty = request.GET.get('quantity')
@@ -1033,6 +1051,9 @@ def update_cart_item(request):
 
 # 按钮 B：正式结账（小程序端用，扣库存+记账）
 def checkout_cart(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     cart_items = CartItem.objects.select_related('product').all()
     if not cart_items.exists():
         return JsonResponse({'status': 'fail', 'msg': '账单为空'})
@@ -1068,6 +1089,9 @@ def checkout_cart(request):
 
 # 今日营业额
 def get_today_stats(request):
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
     stats = _today_sales_stats()
     return JsonResponse({
         'status': 'success',
@@ -1085,6 +1109,10 @@ def ai_recognize_product(request):
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'fail', 'msg': '仅支持 POST'})
+
+    auth_error = require_shopkeeper_api(request)
+    if auth_error:
+        return auth_error
 
     api_key = getattr(settings, 'AI_VISION_API_KEY', '')
     base_url = getattr(settings, 'AI_VISION_BASE_URL', 'https://api.openai.com/v1')

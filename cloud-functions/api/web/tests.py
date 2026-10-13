@@ -4,19 +4,95 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from . import webassets
+from unittest.mock import patch
+
+from . import views, webassets
 from .models import CartItem, Order, OrderItem, Product, SaleHistory
 
 
-class ProductLookupTests(TestCase):
+class ShopkeeperSessionMixin:
+    """收银台接口走 Django session 鉴权（is_shopkeeper_request 的
+    request.user.is_staff 分支），这里用 force_login 复现浏览器端的真实调用方式。
+    注意：必须登录，否则接口返回 403/503，断言 'status' == 'fail' 会因为
+    鉴权失败而"假通过"，把真正的库存逻辑测试变成空测。
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.shopkeeper = get_user_model().objects.create_user(
+            username='shopkeeper', password='test-password',
+            is_staff=True, is_superuser=True,
+        )
+
+    def setUp(self):
+        self.client.force_login(self.shopkeeper)
+
+
+class CashierApiAuthTests(TestCase):
+    """收银台接口不能再裸奔：购物车、结账、营收、查价、AI 识别都要求鉴权。"""
+
+    PROTECTED_ENDPOINTS = [
+        '/get_cart_status/',
+        '/add_item/?barcode=6900001',
+        '/reset_cart/',
+        '/remove_cart_item/?product_id=1',
+        '/update_cart_item/?product_id=1&quantity=1',
+        '/checkout_cart/',
+        '/get_product_by_barcode/?barcode=6900001',
+        '/get_today_stats/',
+    ]
+
+    def test_protected_endpoints_reject_anonymous_callers(self):
+        for url in self.PROTECTED_ENDPOINTS:
+            with self.subTest(url=url):
+                self.assertIn(self.client.get(url).status_code, (401, 403, 503))
+
+    def test_reset_cart_cannot_be_triggered_anonymously(self):
+        """回归防护：/reset_cart/ 曾是公开 GET，任何人可清空店员的账单。"""
+        product = Product.objects.create(barcode='6900001', name='铅笔', price=Decimal('2.00'), stock=5)
+        CartItem.objects.create(product=product, quantity=3)
+
+        self.client.get('/reset_cart/')
+
+        self.assertEqual(CartItem.objects.count(), 1)
+
+    def test_checkout_cannot_be_triggered_anonymously(self):
+        """回归防护：/checkout_cart/ 曾是公开 GET，任何人都能凭空完成一笔交易。"""
+        product = Product.objects.create(barcode='6900002', name='橡皮', price=Decimal('1.50'), stock=5)
+        CartItem.objects.create(product=product, quantity=2)
+
+        self.client.get('/checkout_cart/')
+
+        product.refresh_from_db()
+        self.assertEqual(product.stock, 5)
+        self.assertEqual(SaleHistory.objects.count(), 0)
+
+    def test_shopkeeper_token_header_grants_access(self):
+        """小程序没有 session，靠 X-Shopkeeper-Token 访问。"""
+        with override_settings(SHOPKEEPER_API_TOKEN='test-token'):
+            response = self.client.get('/get_today_stats/', HTTP_X_SHOPKEEPER_TOKEN='test-token')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'success')
+
+    def test_ai_recognize_requires_auth(self):
+        response = self.client.post('/api/ai_recognize/')
+
+        self.assertIn(response.status_code, (401, 403, 503))
+
+
+class ProductLookupTests(ShopkeeperSessionMixin, TestCase):
     def test_missing_barcode_returns_json_error(self):
-        response = self.client.get('/get_product_by_barcode/', {'barcode': 'missing'})
+        # 本地无此条码时会去查 Open Library / Google Books / Bing 等外部源，
+        # 不 mock 的话结果随网络变化（曾因此偶发地返回 success 而挂掉）。
+        with patch.object(views, '_lookup_barcode_external', return_value=None):
+            response = self.client.get('/get_product_by_barcode/', {'barcode': 'missing'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['status'], 'fail')
 
 
-class CartFlowTests(TestCase):
+class CartFlowTests(ShopkeeperSessionMixin, TestCase):
     def test_add_item_allows_last_stock_item_and_does_not_overfill_cart(self):
         Product.objects.create(barcode='6900001', name='铅笔', price=Decimal('2.00'), stock=1)
 
@@ -34,6 +110,9 @@ class CartFlowTests(TestCase):
 
         response = self.client.get('/checkout_cart/')
 
+        # 先确认真的走到了业务逻辑，否则 403/503 的响应体也是 {'status':'fail'}，
+        # 下面的断言会在鉴权失败时"假通过"。
+        self.assertEqual(response.status_code, 200)
         product.refresh_from_db()
         self.assertEqual(response.json()['status'], 'fail')
         self.assertEqual(product.stock, 1)
@@ -47,6 +126,7 @@ class CartFlowTests(TestCase):
 
         response = self.client.get('/checkout_cart/')
 
+        self.assertEqual(response.status_code, 200)
         in_stock.refresh_from_db()
         short_stock.refresh_from_db()
         self.assertEqual(response.json()['status'], 'fail')
@@ -56,7 +136,7 @@ class CartFlowTests(TestCase):
         self.assertEqual(CartItem.objects.count(), 2)
 
 
-class SalesStatsTests(TestCase):
+class SalesStatsTests(ShopkeeperSessionMixin, TestCase):
     def test_today_stats_multiplies_price_by_quantity(self):
         SaleHistory.objects.create(product_name='笔记本', price=Decimal('3.50'), quantity=2)
         SaleHistory.objects.create(product_name='钢笔', price=Decimal('5.00'), quantity=3)
