@@ -2,6 +2,7 @@ import base64
 import json
 import hmac
 import logging
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
@@ -1860,6 +1861,20 @@ def health_check(request):
         'database': 'unknown',
         'tables': {},
         'allowed_hosts': settings.ALLOWED_HOSTS,
+        # 只暴露「是否配置」和长度，绝不回显环境变量的值
+        'env': {
+            name: {
+                'configured': bool(os.environ.get(name)),
+                'length': len(os.environ.get(name) or ''),
+            }
+            for name in (
+                'SHOPKEEPER_API_TOKEN',
+                'SHOPKEEPER_PASSWORD',
+                'CLOUD_DATABASE_URL',
+                'DJANGO_SECRET_KEY',
+                'AI_VISION_API_KEY',
+            )
+        },
     }
 
     try:
